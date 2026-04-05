@@ -408,8 +408,11 @@ function drawPhaseNotif(){
   ctx.globalAlpha=alpha;
   ctx.textAlign="center";
   ctx.font="bold "+(32*scale)+"px Segoe UI,sans-serif";
-  ctx.fillStyle="#ffffff";
+  ctx.fillStyle="#FFE000";
+  ctx.strokeStyle="#CC8800";
+  ctx.lineWidth=3*scale;
   const msg=currentPhase===1?"SPEED UP!":"MAXIMUM SPEED!";
+  ctx.strokeText(msg, canvas.width/2, 105*scale);
   ctx.fillText(msg, canvas.width/2, 105*scale);
   ctx.restore();
   phaseFlash--;
