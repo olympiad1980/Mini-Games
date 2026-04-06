@@ -489,7 +489,28 @@ const bird={
     }
     ctx.restore();
   },
-  rect(){return{x:this.x-17,y:this.y-17,w:34,h:34}}
+  rect(){return{x:this.x-17,y:this.y-17,w:34,h:34}} // kept for reference
+}
+
+// ── Circular collision helper ──────────────────────
+function circleHitsPipe(p){
+  const bx=bird.x, by=bird.y, br=11;
+  const capW=PW+10, cx=p.x-5;
+  const topBottom = p.topH + p.topSpring;
+  const botTop    = p.topH + PGAP + p.botSpring;
+
+  const inCapX  = bx+br > cx    && bx-br < cx+capW;
+  const inBodyX = bx+br > p.x   && bx-br < p.x+PW;
+
+  if(inCapX){
+    if(by-br < topBottom)  return "top";
+    if(by+br > botTop)     return "bot";
+  }
+  if(inBodyX){
+    if(by-br < topBottom-p.capH) return "top";
+    if(by+br > botTop+p.capH)    return "bot";
+  }
+  return null;
 };
 
 // ── Parallax ──────────────────────────────────────
@@ -498,27 +519,46 @@ const mts=Array.from({length:7},()=>({x:rand(0,W),y:rand(H-GH-170,H-GH-60),w:ran
 let gOff=0;
 
 // ── Pipes ─────────────────────────────────────────
-function spawnPipe(now){pipes.push({x:W+PW,topH:rand(75,H-GH-PGAP-75),scored:false,capH:24});lastPT=now}
+function spawnPipe(now){pipes.push({x:W+PW,topH:rand(75,H-GH-PGAP-75),scored:false,capH:24,
+  topSpring:0,topVel:0,   // top pipe spring
+  botSpring:0,botVel:0    // bottom pipe spring
+});lastPT=now}
+
+function updateSpring(offset, vel){
+  vel    += -0.22 * offset; // restore force
+  vel    *= 0.68;           // damping
+  offset += vel;
+  if(Math.abs(offset)<0.08 && Math.abs(vel)<0.08){ offset=0; vel=0; }
+  return [offset, vel];
+}
+
 function drawPipe(p){
-  const x=p.x*scale,pw=PW*scale,capW=(PW+10)*scale,capH=p.capH*scale;
+  // Update springs independently
+  [p.topSpring, p.topVel] = updateSpring(p.topSpring, p.topVel);
+  [p.botSpring, p.botVel] = updateSpring(p.botSpring, p.botVel);
+
+  const x=p.x*scale, pw=PW*scale, capW=(PW+10)*scale, capH=p.capH*scale;
   const tg=ctx.createLinearGradient(x,0,x+pw,0);
   tg.addColorStop(0,"#3ecf3e");tg.addColorStop(.4,"#5eff5e");tg.addColorStop(1,"#1a8f1a");
-  const capX=x-(capW-pw)/2,topH=p.topH*scale;
+  const capX=x-(capW-pw)/2;
+
+  // ── Top pipe — shifted by topSpring ───────────────
+  const topH=(p.topH+p.topSpring)*scale;
   ctx.fillStyle=tg;ctx.fillRect(x,0,pw,topH-capH);
   ctx.fillStyle="#2db82d";ctx.fillRect(capX,topH-capH,capW,capH);
   ctx.fillStyle="rgba(255,255,255,.13)";ctx.fillRect(x+5*scale,0,9*scale,topH-capH);ctx.fillRect(capX+5*scale,topH-capH,9*scale,capH);
   ctx.strokeStyle="#145214";ctx.lineWidth=2*scale;ctx.strokeRect(x,0,pw,topH-capH);ctx.strokeRect(capX,topH-capH,capW,capH);
-  const botY=(p.topH+PGAP)*scale,botH=(H-GH)*scale-botY;
+
+  // ── Bottom pipe — shifted by botSpring ────────────
+  const botY=(p.topH+PGAP+p.botSpring)*scale, botH=(H-GH)*scale-botY;
   ctx.fillStyle="#2db82d";ctx.fillRect(capX,botY,capW,capH);
   ctx.fillStyle=tg;ctx.fillRect(x,botY+capH,pw,botH-capH);
   ctx.fillStyle="rgba(255,255,255,.13)";ctx.fillRect(capX+5*scale,botY,9*scale,capH);ctx.fillRect(x+5*scale,botY+capH,9*scale,botH-capH);
   ctx.strokeStyle="#145214";ctx.strokeRect(capX,botY,capW,capH);ctx.strokeRect(x,botY+capH,pw,botH-capH);
 }
 function pipeHit(p){
-  const br=bird.rect(),cw=PW+10,cx=p.x-5,botY=p.topH+PGAP;
-  if(br.x<cx+cw&&br.x+br.w>cx){if(br.y<p.topH||br.y+br.h>botY)return true}
-  if(br.x<p.x+PW&&br.x+br.w>p.x){if(br.y<p.topH-p.capH||br.y+br.h>botY+p.capH)return true}
-  return false;
+  // Legacy — replaced by circleHitsPipe, kept to avoid reference errors
+  return circleHitsPipe(p) !== null;
 }
 
 // ── BG / Ground ───────────────────────────────────
@@ -677,7 +717,15 @@ function loop(ts){
     updateEggs();updatePopups();
     if(bird.y-20<0){bird.y=20;bird.vy=0}
     if(bird.y+20>H-GH)killBird();
-    pipes.forEach(p=>{if(pipeHit(p))killBird()});
+    pipes.forEach(p=>{
+      const hit=circleHitsPipe(p);
+      if(hit){
+        // Only the hit pipe springs — top hit → top pipe moves down, bot hit → bot pipe moves up
+        if(hit==="top") p.topVel = 14;   // top pipe bounces down
+        else            p.botVel = -14;  // bot pipe bounces up
+        killBird();
+      }
+    });
   }
   if(state==="dead"){deathT++;bird.update();gOff+=PHASES[currentPhase].pspeed*.3;updateParticles();updateFeathers();updateEggs();}
   if(state==="start"){
