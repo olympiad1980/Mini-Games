@@ -29,11 +29,12 @@ const lerp=(a,b,t)=>a+(b-a)*t;
 const easeOut=t=>1-Math.pow(1-t,3);
 
 const PHASES=[
-  {gravity:0.26,jump:-5.8,pspeed:2.0,pint:1900},
-  {gravity:0.32,jump:-7.0,pspeed:2.4,pint:1700},
-  {gravity:0.38,jump:-7.8,pspeed:2.8,pint:1550},
+  {gravity:0.26, jump:-5.8, pspeed:2.0, pint:1900},  // 0-9:  easy start
+  {gravity:0.30, jump:-6.4, pspeed:2.3, pint:1750},  // 10+:  slight bump
+  {gravity:0.34, jump:-7.0, pspeed:2.65,pint:1600},  // 20+:  medium
+  {gravity:0.38, jump:-7.6, pspeed:3.0, pint:1480},  // 30+:  fast
 ];
-function getPhase(sc){return sc>=30?2:sc>=10?1:0;}
+function getPhase(sc){return sc>=30?3:sc>=20?2:sc>=10?1:0;}
 const PGAP=185,PW=56,GH=78,BX=88;
 
 // ── Sprites ───────────────────────────────────────
@@ -403,7 +404,7 @@ function drawBasketHUD(){
 // Big, clean — no shadow, no glow
 function drawPhaseNotif(){
   if(phaseFlash<=0)return;
-  const alpha=Math.min(1, phaseFlash/30); // fade in fast, linger
+  const alpha=Math.min(1, phaseFlash/30);
   ctx.save();
   ctx.globalAlpha=alpha;
   ctx.textAlign="center";
@@ -411,7 +412,8 @@ function drawPhaseNotif(){
   ctx.fillStyle="#FFE000";
   ctx.strokeStyle="#CC8800";
   ctx.lineWidth=3*scale;
-  const msg=currentPhase===1?"SPEED UP!":"MAXIMUM SPEED!";
+  const msgs=["","SPEED UP!","SPEED UP!!","SPEED UP!!!"];
+  const msg=msgs[currentPhase]||"SPEED UP!";
   ctx.strokeText(msg, canvas.width/2, 105*scale);
   ctx.fillText(msg, canvas.width/2, 105*scale);
   ctx.restore();
