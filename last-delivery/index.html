@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Last Delivery - Prototype</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background: #87CEEB; overflow: hidden; touch-action: none; font-family: sans-serif; }
+        canvas { display: block; }
+        /* UI слой поверх игры */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        .btn {
+            position: absolute; width: 70px; height: 70px;
+            background: rgba(0, 0, 0, 0.3); border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 50%; display: flex; justify-content: center; align-items: center;
+            color: white; font-size: 10px; font-weight: bold; pointer-events: auto; user-select: none;
+        }
+        .btn:active { background: rgba(0, 0, 0, 0.6); }
+        /* Расположение кнопок */
+        #btn-brake { bottom: 30px; left: 20px; }
+        #btn-up { bottom: 120px; left: 20px; }
+        #btn-gas { bottom: 30px; right: 20px; }
+        #btn-down { bottom: 120px; right: 20px; }
+    </style>
+</head>
+<body>
+
+<div id="game-container"></div>
+
+<div id="ui-layer">
+    <div id="btn-brake" class="btn">ТОРМОЗ</div>
+    <div id="btn-up" class="btn">НАЗАД</div>
+    <div id="btn-gas" class="btn">ГАЗ</div>
+    <div id="btn-down" class="btn">ВЕРЕД</div>
+</div>
+
+<script>
+const config = {
+    type: Phaser.AUTO,
+    width: window.innerWidth,
+    height: window.innerHeight,
+    parent: 'game-container',
+    physics: {
+        default: 'matter',
+        matter: {
+            gravity: { y: 1.5 }, // Сила гравитации
+            debug: false
+        }
+    },
+    scene: { create: create, update: update }
+};
+
+const game = new Phaser.Game(config);
+
+let bikeBody, frontWheel, backWheel;
+let isGas = false, isBrake = false, isTiltUp = false, isTiltDown = false;
+
+function create() {
+    this.matter.world.setBounds(0, 0, 6000, window.innerHeight * 2);
+    
+    // Рисуем примитивы кодом (вместо картинок)
+    const graphics = this.make.graphics({ add: false });
+    
+    // 1. Текстура земли (Зеленая)
+    graphics.fillStyle(0x4ade80, 1);
+    graphics.fillRect(0, 0, 2000, 100);
+    graphics.generateTexture('groundTex', 2000, 100);
+    graphics.clear();
+
+    // 2. Текстура корпуса (Синяя)
+    graphics.fillStyle(0x3b82f6, 1);
+    graphics.fillRect(0, 0, 100, 30);
+    graphics.generateTexture('bodyTex', 100, 30);
+    graphics.clear();
+
+    // 3. Текстура колеса (Красная)
+    graphics.fillStyle(0xef4444, 1);
+    graphics.fillCircle(20, 20, 20);
+    graphics.generateTexture('wheelTex', 40, 40);
+    graphics.clear();
+
+    // -- СОЗДАЕМ УРОВЕНЬ --
+    // Делаем несколько блоков земли под разными углами (горки)
+    this.matter.add.image(1000, window.innerHeight, 'groundTex', null, { isStatic: true });
+    this.matter.add.image(2800, window.innerHeight + 100, 'groundTex', null, { isStatic: true, angle: 0.1 });
+    this.matter.add.image(4500, window.innerHeight + 300, 'groundTex', null, { isStatic: true, angle: 0.25 });
+
+    // -- СОЗДАЕМ БАЙК --
+    const startX = 200;
+    const startY = window.innerHeight - 300;
+
+    // Корпус
+    bikeBody = this.matter.add.image(startX, startY, 'bodyTex');
+    bikeBody.setMass(3); // Вес корпуса
+
+    // Колеса
+    frontWheel = this.matter.add.image(startX + 40, startY + 30, 'wheelTex').setCircle(20);
+    frontWheel.setFriction(0.8);
+    frontWheel.setMass(1.5);
+
+    backWheel = this.matter.add.image(startX - 40, startY + 30, 'wheelTex').setCircle(20);
+    backWheel.setFriction(0.9); // Заднее колесо цепляется лучше
+    backWheel.setMass(1.5);
+
+    // Пружины (подвеска) - Соединяем колеса с корпусом
+    this.matter.add.joint(bikeBody, frontWheel, 40, 0.5, { pointA: { x: 40, y: 15 }, damping: 0.1 });
+    this.matter.add.joint(bikeBody, backWheel, 40, 0.5, { pointA: { x: -40, y: 15 }, damping: 0.1 });
+
+    // Настройка камеры (плавно следит за байком)
+    this.cameras.main.startFollow(bikeBody, true, 0.05, 0.05);
+    this.cameras.main.setBounds(0, 0, 6000, window.innerHeight * 2);
+
+    // -- ПОДКЛЮЧАЕМ КНОПКИ УПРАВЛЕНИЯ --
+    const addTouch = (id, actionDown, actionUp) => {
+        const btn = document.getElementById(id);
+        btn.addEventListener('touchstart', (e) => { e.preventDefault(); actionDown(); });
+        btn.addEventListener('touchend', (e) => { e.preventDefault(); actionUp(); });
+    };
+
+    addTouch('btn-gas', () => isGas = true, () => isGas = false);
+    addTouch('btn-brake', () => isBrake = true, () => isBrake = false);
+    addTouch('btn-up', () => isTiltUp = true, () => isTiltUp = false);
+    addTouch('btn-down', () => isTiltDown = true, () => isTiltDown = false);
+}
+
+function update() {
+    // ЛОГИКА ФИЗИКИ КАЖДЫЙ КАДР
+    if (isGas) {
+        // Крутим заднее колесо (ГАЗ)
+        backWheel.setAngularVelocity(0.4);
+    }
+    if (isBrake) {
+        // Резко останавливаем вращение колес (ТОРМОЗ)
+        backWheel.setAngularVelocity(0);
+        frontWheel.setAngularVelocity(0);
+    }
+    if (isTiltUp) {
+        // Наклоняем корпус назад
+        bikeBody.setAngularVelocity(-0.05);
+    }
+    if (isTiltDown) {
+        // Наклоняем корпус вперед
+        bikeBody.setAngularVelocity(0.05);
+    }
+}
+</script>
+
+</body>
+</html>
