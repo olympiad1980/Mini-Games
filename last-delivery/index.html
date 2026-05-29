@@ -103,9 +103,9 @@ function create() {
     backWheel.setFriction(0.9); // Заднее колесо цепляется лучше
     backWheel.setMass(1.5);
 
-    // Пружины (подвеска) - Соединяем колеса с корпусом
-    this.matter.add.joint(bikeBody, frontWheel, 40, 0.5, { pointA: { x: 40, y: 15 }, damping: 0.1 });
-    this.matter.add.joint(bikeBody, backWheel, 40, 0.5, { pointA: { x: -40, y: 15 }, damping: 0.1 });
+    // Пружины (подвеска) - Соединяем колеса с корпусом (ЖЕСТКИЕ)
+    this.matter.add.joint(bikeBody, frontWheel, 30, 0.95, { pointA: { x: 40, y: 15 }, damping: 0.8 });
+    this.matter.add.joint(bikeBody, backWheel, 30, 0.95, { pointA: { x: -40, y: 15 }, damping: 0.8 });
 
     // Настройка камеры (плавно следит за байком)
     this.cameras.main.startFollow(bikeBody, true, 0.05, 0.05);
