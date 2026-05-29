@@ -90,22 +90,30 @@ function create() {
     const startX = 200;
     const startY = window.innerHeight - 300;
 
+    // 1. Создаем уникальную группу коллизий (-1 означает "свои не сталкиваются")
+    const bikeGroup = -1;
+
     // Корпус
     bikeBody = this.matter.add.image(startX, startY, 'bodyTex');
-    bikeBody.setMass(3); // Вес корпуса
+    bikeBody.setMass(3);
+    bikeBody.setCollisionGroup(bikeGroup); // Добавляем в группу
 
     // Колеса
     frontWheel = this.matter.add.image(startX + 40, startY + 30, 'wheelTex').setCircle(20);
     frontWheel.setFriction(0.8);
     frontWheel.setMass(1.5);
+    frontWheel.setCollisionGroup(bikeGroup); // Добавляем в группу
 
     backWheel = this.matter.add.image(startX - 40, startY + 30, 'wheelTex').setCircle(20);
-    backWheel.setFriction(0.9); // Заднее колесо цепляется лучше
+    backWheel.setFriction(0.9);
     backWheel.setMass(1.5);
+    backWheel.setCollisionGroup(bikeGroup); // Добавляем в группу
 
-    // Пружины (подвеска) - Соединяем колеса с корпусом (ЖЕСТКИЕ)
-    this.matter.add.joint(bikeBody, frontWheel, 30, 0.95, { pointA: { x: 40, y: 15 }, damping: 0.8 });
-    this.matter.add.joint(bikeBody, backWheel, 30, 0.95, { pointA: { x: -40, y: 15 }, damping: 0.8 });
+    // Пружины (подвеска)
+    // Длина 15 дает небольшой ход подвеске, а жесткость 0.5 делает ее упругой, но не каменной
+    this.matter.add.joint(bikeBody, frontWheel, 15, 0.5, { pointA: { x: 40, y: 15 }, damping: 0.1 });
+    this.matter.add.joint(bikeBody, backWheel, 15, 0.5, { pointA: { x: -40, y: 15 }, damping: 0.1 });
+
 
     // Настройка камеры (плавно следит за байком)
     this.cameras.main.startFollow(bikeBody, true, 0.05, 0.05);
