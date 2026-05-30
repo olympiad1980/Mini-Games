@@ -11,78 +11,84 @@
   #game-container { flex:1; min-height:0; overflow:hidden; position:relative; }
   #game-container canvas { display:block; width:100%!important; height:100%!important; }
   #capsules-bar { display:none; }
-  .cap { width:9px; height:14px; border-radius:3px; background:#60a5fa; }
-  .cap.dead { background:#1a1a28; }
 
-  /* ── Панель управления — компактная, кнопки у верхнего края ── */
+  /* ── Панель управления — минимальная высота, кнопки выезжают вверх ── */
   #controls {
     flex-shrink:0;
-    height:130px;
+    height:90px;
     background:#080808;
-    border-top:1px solid #1a1008;
+    border-top:1px solid #2a1a08;
     display:flex;
-    align-items:flex-start;   /* прижаты к верху = ближе к дороге */
+    align-items:flex-start;
     justify-content:space-between;
-    padding:6px 18px 0;
+    padding:0 18px;
     padding-bottom:max(4px,env(safe-area-inset-bottom));
+    overflow:visible;       /* кнопки выходят за верхний край */
+    position:relative;
+    z-index:20;
   }
 
-  #speedo-wrap { display:flex; flex-direction:column; align-items:center; gap:1px; }
-  #dist-val { font-size:9px; color:#2a1a08; letter-spacing:2px; text-align:center; }
-  #btn-group { display:flex; align-items:flex-start; gap:10px; }
+  #speedo-wrap {
+    display:flex; flex-direction:column; align-items:center; gap:1px;
+    margin-top:-38px;       /* спидометр поднят над панелью */
+  }
+  #dist-val { font-size:9px; color:#2a1a08; letter-spacing:2px; text-align:center; margin-top:2px; }
+  #btn-group { display:flex; align-items:flex-end; gap:12px; margin-top:0; }
 
-  /* ── GAS — крупнее ── */
+  /* ── GAS — крупный, выезжает вверх ── */
   #btn-gas {
-    width:128px; height:128px; border-radius:50%;
-    background:rgba(25,18,10,0.6);
-    border:2px solid rgba(255,255,255,0.9);
-    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+    width:130px; height:130px; border-radius:50%;
+    background:rgba(25,18,10,0.65);
+    border:2px solid rgba(255,255,255,0.92);
+    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
     cursor:pointer; -webkit-tap-highlight-color:transparent; user-select:none;
     display:flex; align-items:center; justify-content:center;
     position:relative; overflow:hidden;
     transition:background .07s,box-shadow .07s,transform .05s;
     flex-shrink:0;
-    /* Вылезает немного за верхний край панели = ближе к дороге */
-    margin-top:-22px;
+    margin-top:-58px;       /* сильно выезжает вверх, почти к дороге */
+    box-shadow:0 4px 24px rgba(0,0,0,0.6);
   }
   #btn-gas::before {
     content:''; position:absolute; inset:0; border-radius:50%;
-    background:radial-gradient(circle at 38% 32%, rgba(255,255,255,0.13) 0%, transparent 60%);
+    background:radial-gradient(circle at 38% 32%, rgba(255,255,255,0.14) 0%, transparent 60%);
     pointer-events:none;
   }
   #btn-gas.pressed {
-    background:rgba(251,146,60,0.22);
-    box-shadow:0 0 28px rgba(251,146,60,0.55),inset 0 0 14px rgba(251,146,60,0.12);
+    background:rgba(251,146,60,0.25);
+    box-shadow:0 0 32px rgba(251,146,60,0.6),inset 0 0 16px rgba(251,146,60,0.14);
     transform:scale(0.95); border-color:rgba(255,210,120,1);
   }
-  #btn-gas svg { width:66px; height:66px; }
+  #btn-gas svg { width:68px; height:68px; }
 
-  /* ── NITRO — заморожен (неактивен до реализации логики) ── */
+  /* ── NITRO — заморожен, но ВИДИМЫЙ ── */
   #btn-nitro {
-    width:56px; height:56px; border-radius:50%;
-    background:rgba(15,15,15,0.7);
-    border:2px solid rgba(60,60,60,0.4);
+    width:58px; height:58px; border-radius:50%;
+    background:rgba(20,22,20,0.75);
+    border:2px solid rgba(100,120,100,0.55);
     backdrop-filter:blur(8px);
     display:flex; align-items:center; justify-content:center;
     position:relative; overflow:hidden;
     flex-shrink:0;
-    pointer-events:none;   /* заморожен */
+    pointer-events:none;
     cursor:default;
-    opacity:0.35;           /* серый/неактивный вид */
-    margin-top:36px;        /* выравнивание по вертикали */
+    margin-top:-18px;
+    box-shadow:0 2px 12px rgba(0,0,0,0.5), inset 0 0 10px rgba(40,50,40,0.3);
   }
-  #btn-nitro::before { display:none; } /* убираем прогресс-кольцо */
+  #btn-nitro::before { display:none; }
   #btn-nitro::after {
     content:''; position:absolute; inset:3px; border-radius:50%;
-    background:rgba(10,10,10,0.9); pointer-events:none;
+    background:rgba(12,15,12,0.88); pointer-events:none;
   }
   #nitro-icon {
-    position:relative; z-index:2; font-size:20px; line-height:1;
-    opacity:0.25; pointer-events:none;
+    position:relative; z-index:2; font-size:22px; line-height:1;
+    opacity:0.55;           /* значительно ярче — видно что есть */
+    pointer-events:none;
+    filter:grayscale(0.6) brightness(0.8);
   }
-  /* Все анимации нитро отключены */
-  #btn-nitro.ready, #btn-nitro.active { box-shadow:none; animation:none; border-color:rgba(60,60,60,0.4); background:rgba(15,15,15,0.7); }
-  #btn-nitro.ready #nitro-icon, #btn-nitro.active #nitro-icon { filter:none; opacity:0.25; animation:none; }
+  /* Все анимации нитро отключены пока не реализована логика */
+  #btn-nitro.ready,#btn-nitro.active { box-shadow:0 2px 12px rgba(0,0,0,0.5); animation:none; border-color:rgba(100,120,100,0.55); background:rgba(20,22,20,0.75); }
+  #btn-nitro.ready #nitro-icon,#btn-nitro.active #nitro-icon { filter:grayscale(0.6) brightness(0.8); opacity:0.55; animation:none; }
 
   #version { position:absolute; bottom:3px; left:8px; font-size:7px; letter-spacing:2px; color:#111; pointer-events:none; z-index:50; }
 </style>
@@ -167,10 +173,30 @@ const elDist=document.getElementById('dist-val'),elCapsBar=document.getElementBy
 const btnGas=document.getElementById('btn-gas'),btnNitro=document.getElementById('btn-nitro');
 function initCaps(n){elCapsBar.innerHTML='';for(let i=0;i<20;i++){const d=document.createElement('div');d.className='cap'+(i<n?'':' dead');d.id='cap'+i;elCapsBar.appendChild(d);}}
 initCaps(20);
-let gasHeld=false,nitroHeld=false,lastTap=0;
-function onGasDown(){const n=Date.now();if(n-lastTap<280)window._gs&&window._gs.startJump();lastTap=n;gasHeld=true;btnGas.classList.add('pressed');}
-function onGasUp(){gasHeld=false;btnGas.classList.remove('pressed');}
-function bindBtn(el,d,u){['touchstart','mousedown'].forEach(e=>el.addEventListener(e,ev=>{ev.preventDefault&&ev.preventDefault();d();},{passive:false}));['touchend','touchcancel','mouseup','mouseleave'].forEach(e=>el.addEventListener(e,ev=>{ev.preventDefault&&ev.preventDefault();u();},{passive:false}));}
+let gasHeld     = false;
+let nitroHeld   = false;
+let gasPressTime= 0;
+const TAP_MAX_MS= 175; // < этого = тап → прыжок при движении
+
+function onGasDown(){
+  gasPressTime=Date.now();
+  gasHeld=true; btnGas.classList.add('pressed');
+}
+function onGasUp(){
+  const tapMs=Date.now()-gasPressTime;
+  gasHeld=false; btnGas.classList.remove('pressed');
+  // Быстрый тап ПРИ ДВИЖЕНИИ = прыжок
+  if(tapMs<TAP_MAX_MS){
+    const gs=window._gs;
+    if(gs&&gs.bgScrollKmh>12&&gs.onGround&&gs.jumpPhase==='none'&&!gs.crashed&&!gs.burnoutActive&&!gs.prepActive){
+      gs.startJump();
+    }
+  }
+}
+function bindBtn(el,d,u){
+  ['touchstart','mousedown'].forEach(e=>el.addEventListener(e,ev=>{ev.preventDefault&&ev.preventDefault();d();},{passive:false}));
+  ['touchend','touchcancel','mouseup','mouseleave'].forEach(e=>el.addEventListener(e,ev=>{ev.preventDefault&&ev.preventDefault();u();},{passive:false}));
+}
 bindBtn(btnGas,onGasDown,onGasUp);
 bindBtn(btnNitro,()=>nitroHeld=true,()=>nitroHeld=false);
 
@@ -268,7 +294,8 @@ class GameScene extends Phaser.Scene{
     // ── Пробуксовка старта ──
     this.burnoutActive = false;
     this.burnoutTimer  = 0;
-    this.prepActive    = false;  // фаза подготовки перед козликом
+    this.isFirstStart  = true;  // первый запуск — максимальный козлик
+    this.prepActive    = false;
     this.prepTimer     = 0;
     this.lurchActive   = false;
     this.lurchTimer    = 0;
@@ -336,10 +363,10 @@ class GameScene extends Phaser.Scene{
     // ── Колёса: отдельный слой ВНЕ контейнера (мировые координаты) ──
     this.gWheels = this.add.graphics().setDepth(10);
 
-    // ── Fade снизу ──
+    // ── Fade снизу (тонкий — меньше тёмной зоны под дорогой) ──
     const fd=this.add.graphics().setDepth(14);
-    const fh=Math.round(H*.16);
-    for(let i=0;i<fh;i++){fd.fillStyle(0x000000,i/fh*.9);fd.fillRect(0,H-fh+i,W,1);}
+    const fh=Math.round(H*.06);
+    for(let i=0;i<fh;i++){fd.fillStyle(0x000000,i/fh*.85);fd.fillRect(0,H-fh+i,W,1);}
 
     // ── Байк (тело без колёс) ──
     this.bikeC=this.add.container(W*.36,BR).setDepth(11);
@@ -419,6 +446,13 @@ class GameScene extends Phaser.Scene{
     g.fillStyle(C.exhaust);g.fillRect(-18,fY-2,28,18);g.fillStyle(C.rustD);g.fillRect(-14,fY+1,20,13);
     g.lineStyle(5,C.exhaust);g.beginPath();g.moveTo(-16,fY+14);g.lineTo(wB+4,fY+17);g.lineTo(wB,aY+4);g.strokePath();
     if(this.nitroOn){const t=this.time.now,fl=Math.sin(t*.03);g.fillStyle(0x0044cc,(.3+fl*.18));g.fillEllipse(wB-18,aY+4,34+fl*8,15);g.fillStyle(0x44aaff,(.5+fl*.18));g.fillEllipse(wB-12,aY+4,22+fl*5,9);g.fillStyle(0xaaddff,(.65+fl*.2));g.fillEllipse(wB-6,aY+4,12+fl*3,6);g.fillStyle(0xffffff,(.75+fl*.2));g.fillEllipse(wB-2,aY+4,6+fl*2,4);}
+    else if(this.jumpBoost){
+      // Два красных огонька при буст-прыжке
+      const t=this.time.now,fl=Math.sin(t*.05);
+      g.fillStyle(0xdd1100,.65+fl*.25);g.fillEllipse(wB-12,aY+4,20+fl*6,8);
+      g.fillStyle(0xff4400,.80+fl*.15);g.fillEllipse(wB-6,aY+4,12+fl*4,5);
+      g.fillStyle(0xff8800,.55+fl*.2);g.fillEllipse(wB-2,aY+3,6+fl*2,3);
+    }
     else if(this.vizKmh>5){g.fillStyle(0xff6600,.18+Math.sin(this.time.now*.04)*.07);g.fillEllipse(wB-7,aY+4,11,5);}
     g.fillStyle(C.rustD);g.fillRect(-10,fY-50,4,18);g.fillStyle(C.exhaust);g.fillRect(-18,fY-54,18,5);
     g.fillStyle(C.goggle);g.fillCircle(wF-1,fY-18,7);g.fillStyle(0xffcc44,.2);g.fillCircle(wF-1,fY-18,4);
@@ -509,19 +543,20 @@ class GameScene extends Phaser.Scene{
     }
   }
 
-  // ── Двойной отскок: первый выше, второй ниже, расстояние меньше ──
+  // ── Отскок: 1й высокий (65°), 2й ниже (36°), короткий gap ──
   _triggerBounce(strength){this.bouncing=true;this.bounceVY=-(strength||BOUNCE_STR);this.bounceY=0;}
 
   updateBounce(dt){
     if(!this.bouncing)return;
     this.bounceY+=this.bounceVY*dt;
-    this.bounceVY+=420*dt;  // высокая гравитация = отскоки быстрее/ближе
+    this.bounceVY+=500*dt;  // высокая гравитация = короткий gap между отскоками
     if(this.bounceY>=0){
       this.bounceY=0;
-      if(Math.abs(this.bounceVY)>60){
-        this.bounceVY=-this.bounceVY*.30; // второй — 30% (заметно ниже первого)
-      } else if(Math.abs(this.bounceVY)>18){
-        this.bounceVY=-this.bounceVY*.15; // третий — почти нет
+      const spd=Math.abs(this.bounceVY);
+      if(spd>55){
+        this.bounceVY=-spd*.55; // 2й: 36/65≈55% от первого
+      } else if(spd>20){
+        this.bounceVY=-spd*.18; // микро-третий
       } else {
         this.bouncing=false;this.bounceVY=0;
       }
@@ -691,10 +726,12 @@ class GameScene extends Phaser.Scene{
     // ── Пробуксовка ──
     if(this.burnoutActive){
       this.burnoutTimer-=dt;
-      this.wAngle+=50*dt; // заднее колесо максимально быстро
+      this.wAngle+=50*dt;
       this.spawnBurnoutSmoke();
       if(this.burnoutTimer<=0){
-        this.burnoutActive=false; this.lurchActive=true; this.lurchTimer=0.30;
+        this.burnoutActive=false;
+        this.isFirstStart=false;  // первый старт завершён
+        this.lurchActive=true; this.lurchTimer=0.30;
       }
     }
 
@@ -722,6 +759,13 @@ class GameScene extends Phaser.Scene{
     this.updateJump(dt);
     this.updateBounce(dt);
 
+    // ── Буст во время прыжка: держим газ = летим дальше + красные огни ──
+    this.jumpBoost = gasHeld && this.jumpPhase==='air';
+    if(this.jumpBoost){
+      // Фон движется быстрее — ощущение большего прыжка
+      this.bgScrollKmh=Math.min(KMH_MAX, this.bgScrollKmh+28*dt);
+    }
+
     // ── Вобблинг переднего колеса после приземления ──
     if(this.landingWobble){
       this.landingWobblePhase+=14*dt;
@@ -742,7 +786,8 @@ class GameScene extends Phaser.Scene{
     let rotTgt=this.targetRot;
     if(this.jumpPhase==='none'){
       if(this.burnoutActive){
-        rotTgt=-0.62;                              // сильный вилли при старте
+        // Первый запуск: максимальный козлик. Последующие: 50%
+        rotTgt = this.isFirstStart ? -0.62 : -0.31;
       } else if(this.prepActive){
         rotTgt=-0.08;
       } else if(this.lurchActive){
@@ -754,8 +799,8 @@ class GameScene extends Phaser.Scene{
         const r = bp < peak
           ? (bp/peak)
           : 1-((bp-peak)/0.75);
-        // При >50 км/ч — задираем сильно, при <50 — слабее
-        const brakePeak = this.prevBgKmh > 50 ? 0.55 : 0.26;
+        // При >50 км/ч — задираем, при <50 — слабее. Оба -20% от прежних
+        const brakePeak = this.prevBgKmh > 50 ? 0.44 : 0.21;
         rotTgt = r * brakePeak;
       } else if(gas){
         rotTgt=-(0.01+this.vizKmh/KMH_MAX*0.065);
