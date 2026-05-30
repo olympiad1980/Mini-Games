@@ -370,22 +370,45 @@ class GameScene extends Phaser.Scene{
     else if(this.vizKmh>5){g.fillStyle(0xff6600,.18+Math.sin(this.time.now*.04)*.07);g.fillEllipse(wB-7,aY+4,11,5);}
     g.fillStyle(C.rustD);g.fillRect(-10,fY-50,4,18);g.fillStyle(C.exhaust);g.fillRect(-18,fY-54,18,5);
     g.fillStyle(C.goggle);g.fillCircle(wF-1,fY-18,7);g.fillStyle(0xffcc44,.2);g.fillCircle(wF-1,fY-18,4);
-    // Угол спиц корректируется на вращение контейнера
-    // чтобы колёса не "прыгали" при наклоне байка
-    const spokeBase = this.wAngle - this.bikeC.rotation;
-    [wB,wF].forEach(wx=>{
-      g.lineStyle(10,C.wheel);g.strokeCircle(wx,aY,wR);
+    // Колёса рисуются отдельно в drawWheels() — мировые координаты
+    this.drawRay(g,fY);
+  }
+
+  // ── Колёса в МИРОВЫХ координатах — не зависят от наклона байка ──
+  drawWheels(){
+    const g=this.gWheels; g.clear();
+    const wR=22, wB=-54, wF=32, aY=0;
+    const cx=this.bikeC.x, cy=this.bikeC.y;
+    const rot=this.bikeC.rotation;
+    const cosR=Math.cos(rot), sinR=Math.sin(rot);
+
+    [[wB,aY],[wF,aY]].forEach(([lx,ly])=>{
+      // Позиция центра колеса в мировых координатах
+      const wx=cx+lx*cosR-ly*sinR;
+      const wy=cy+lx*sinR+ly*cosR;
+
+      // Шина
+      g.lineStyle(10,C.wheel);
+      g.strokeCircle(wx,wy,wR);
+
+      // Спицы — угол ТОЛЬКО от wAngle, без наклона контейнера
       g.lineStyle(1.5,C.spoke);
       for(let s=0;s<8;s++){
-        const a=spokeBase+(s/8)*Math.PI*2;
-        g.beginPath();g.moveTo(wx,aY);
-        g.lineTo(wx+Math.cos(a)*(wR-3),aY+Math.sin(a)*(wR-3));g.strokePath();
+        const a=this.wAngle+(s/8)*Math.PI*2;
+        g.beginPath();
+        g.moveTo(wx,wy);
+        g.lineTo(wx+Math.cos(a)*(wR-3),wy+Math.sin(a)*(wR-3));
+        g.strokePath();
       }
-      g.lineStyle(3,C.rim);g.strokeCircle(wx,aY,wR*.52);
-      g.fillStyle(C.exhaust);g.fillCircle(wx,aY,4);
-      g.fillStyle(C.rustD);g.fillCircle(wx,aY,2);
+
+      // Обод
+      g.lineStyle(3,C.rim);
+      g.strokeCircle(wx,wy,wR*.52);
+
+      // Ступица
+      g.fillStyle(C.exhaust);g.fillCircle(wx,wy,4);
+      g.fillStyle(C.rustD);g.fillCircle(wx,wy,2);
     });
-    this.drawRay(g,fY);
   }
 
   drawRay(g,fY){
@@ -707,7 +730,8 @@ class GameScene extends Phaser.Scene{
 
     this.drawGarage();
     this.drawGround();
-    this.drawBike();
+    this.drawWheels(); // колёса — до байка (слой 10)
+    this.drawBike();   // тело байка (слой 11)
     this.spawnDust();
     this.updateParticles(dt);
     this.drawParticles();
