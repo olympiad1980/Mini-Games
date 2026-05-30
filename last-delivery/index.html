@@ -3,369 +3,349 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Last Delivery — Proto v0.3</title>
+<title>Last Delivery — Proto v0.4</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-
   html, body {
-    width: 100%;
-    height: 100%;
-    background: #0a0a0a;
-    overflow: hidden;
-    touch-action: none;
-    font-family: monospace;
+    width:100%; height:100%;
+    background:#080808;
+    overflow:hidden;
+    touch-action:none;
+    font-family:monospace;
   }
-
   #app {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    /* dvh учитывает адресную строку и системные панели */
-    height: 100dvh;
-    height: 100vh; /* fallback */
+    display:flex; flex-direction:column;
+    width:100%; height:100dvh; height:100vh;
   }
 
   /* ── ИГРОВАЯ ЗОНА ── */
   #game-container {
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
-    position: relative;
+    flex:1; min-height:0; overflow:hidden; position:relative;
+  }
+  #game-container canvas {
+    display:block; width:100%!important; height:100%!important;
   }
 
-  #game-container canvas {
-    display: block;
-    width: 100% !important;
-    height: 100% !important;
+  /* Капсулы сверху */
+  #capsules-bar {
+    position:absolute; top:0; left:0; right:0;
+    height:26px;
+    background:rgba(0,0,0,0.45);
+    display:flex; align-items:center; justify-content:center;
+    gap:2px; z-index:100; pointer-events:none;
+  }
+  .cap {
+    width:10px; height:15px; border-radius:3px;
+    background:#60a5fa; position:relative; transition:background 0.2s;
+  }
+  .cap.dead { background:#1e1e2e; }
+  .cap::after {
+    content:''; position:absolute;
+    top:2px; left:2px; width:3px; height:4px;
+    background:rgba(255,255,255,0.28); border-radius:1px;
+  }
+
+  /* Прогресс снизу канваса */
+  #progress-bar {
+    position:absolute; bottom:0; left:0; right:0;
+    height:3px; background:#111; z-index:100; pointer-events:none;
+  }
+  #progress-fill {
+    height:100%; background:#fb923c; width:0%; transition:width 0.3s;
+    border-radius:2px;
   }
 
   /* ── ПАНЕЛЬ УПРАВЛЕНИЯ ── */
   #controls {
-    flex-shrink: 0;
-    height: 150px;
-    background: #080808;
-    border-top: 1px solid #1e1408;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 20px 12px 16px;
-    /* safe area для iPhone с чёлкой */
-    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    flex-shrink:0;
+    height:160px;
+    background:#080808;
+    border-top:1px solid #1a1008;
+    display:flex;
+    align-items:center;
+    padding:12px 16px;
+    padding-bottom:max(12px, env(safe-area-inset-bottom));
+    gap:0;
+    position:relative;
   }
 
-  /* ── LEFT: Speed ── */
+  /* ── ЛЕВО: Speed + km ── */
   #left-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    min-width: 72px;
+    display:flex; flex-direction:column;
+    gap:2px; min-width:75px;
+  }
+  .ui-lbl {
+    font-size:8px; letter-spacing:4px;
+    color:#2a1a08; text-transform:uppercase;
+  }
+  #speed-val {
+    font-size:42px; font-weight:bold;
+    color:#fb923c; line-height:1; letter-spacing:-3px;
+    transition:color 0.2s;
+  }
+  #speed-unit { font-size:9px; letter-spacing:3px; color:#2a1a08; }
+  #km-row {
+    margin-top:8px; display:flex; flex-direction:column; gap:1px;
+  }
+  #km-val {
+    font-size:16px; font-weight:bold;
+    color:#3a2a18; letter-spacing:-1px; line-height:1;
   }
 
-  .ui-label {
-    font-size: 8px;
-    letter-spacing: 4px;
-    color: #3a2a18;
-    text-transform: uppercase;
-  }
-
-  #speed-value {
-    font-size: 38px;
-    font-weight: bold;
-    color: #fb923c;
-    line-height: 1;
-    letter-spacing: -2px;
-    transition: color 0.2s;
-  }
-
-  #speed-unit {
-    font-size: 9px;
-    letter-spacing: 3px;
-    color: #3a2a18;
-  }
-
-  #nitro-row {
-    display: flex;
-    gap: 5px;
-    margin-top: 4px;
-  }
-
-  .nitro-pip {
-    width: 22px;
-    height: 8px;
-    border-radius: 2px;
-    background: #1a1a1a;
-    border: 1px solid #2a2a2a;
-    transition: all 0.2s;
-  }
-
-  .nitro-pip.on {
-    background: #ff6b00;
-    border-color: #ff9a00;
-    box-shadow: 0 0 6px #ff6b0088;
-  }
-
-  /* ── CENTER: Multiplier ── */
+  /* ── ЦЕНТР: Множитель ── */
   #center-panel {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
+    flex:1; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:4px;
   }
-
-  #mult-value {
-    font-size: 58px;
-    font-weight: bold;
-    color: #fb923c;
-    line-height: 1;
-    letter-spacing: -3px;
-    transition: color 0.3s;
+  #mult-lbl { font-size:8px; letter-spacing:4px; color:#2a1a08; text-transform:uppercase; }
+  #mult-val {
+    font-size:62px; font-weight:bold; color:#fb923c;
+    line-height:1; letter-spacing:-4px; transition:color 0.2s;
   }
-
   #mult-track {
-    width: 80%;
-    height: 3px;
-    background: #1a1a1a;
-    border-radius: 2px;
-    overflow: hidden;
+    width:75%; height:3px; background:#1a1208;
+    border-radius:2px; overflow:hidden;
   }
-
   #mult-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #fb923c, #ff2d55);
-    width: 0%;
-    transition: width 0.4s;
-    border-radius: 2px;
+    height:100%; width:0%;
+    background:linear-gradient(90deg,#fb923c,#ff2d55);
+    border-radius:2px; transition:width 0.4s;
   }
 
-  /* ── RIGHT: одна кнопка GAS ── */
+  /* ── ПРАВО: кнопки ── */
   #right-panel {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
+    display:flex; align-items:flex-start;
+    gap:10px; flex-shrink:0;
+    padding-top:4px;
   }
 
+  /* ── GAS кнопка — большой круг ── */
   #btn-gas {
-    width: 110px;
-    height: 110px;
-    border-radius: 22px;
-    border: none;
-    background: linear-gradient(160deg, #c45a00 0%, #7a3200 100%);
-    color: #ffcc88;
-    font-family: monospace;
-    font-size: 11px;
-    font-weight: bold;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    user-select: none;
-    box-shadow:
-      0 5px 0 #3a1500,
-      0 0 30px rgba(251,146,60,0.15);
-    border: 1px solid rgba(251,146,60,0.25);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    position: relative;
-    overflow: hidden;
-    transition: transform 0.08s, box-shadow 0.08s, background 0.1s;
+    width:110px; height:110px;
+    border-radius:50%;
+    background:rgba(30,20,10,0.55);
+    border:2px solid rgba(255,255,255,0.9);
+    backdrop-filter:blur(6px);
+    -webkit-backdrop-filter:blur(6px);
+    cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+    user-select:none;
+    display:flex; align-items:center; justify-content:center;
+    position:relative;
+    overflow:hidden;
+    transition:background 0.08s, box-shadow 0.08s, transform 0.06s;
+    box-shadow: 0 0 0 0 rgba(255,255,255,0);
+    flex-shrink:0;
   }
-
   #btn-gas::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 45%;
-    background: rgba(255,255,255,0.06);
-    border-radius: 22px 22px 0 0;
+    content:'';
+    position:absolute; top:0; left:0; right:0; bottom:0;
+    border-radius:50%;
+    background:radial-gradient(circle at 38% 35%, rgba(255,255,255,0.12) 0%, transparent 65%);
+    pointer-events:none;
   }
-
-  #btn-gas .gas-icon {
-    font-size: 28px;
-    line-height: 1;
-    transition: transform 0.1s;
-  }
-
-  #btn-gas .gas-text {
-    font-size: 10px;
-    letter-spacing: 4px;
-    opacity: 0.8;
-  }
-
   #btn-gas.pressed {
-    transform: translateY(3px);
-    box-shadow: 0 2px 0 #3a1500, 0 0 50px rgba(251,146,60,0.45);
-    background: linear-gradient(160deg, #ff8c00 0%, #c45a00 100%);
+    background:rgba(251,146,60,0.22);
+    box-shadow:0 0 28px rgba(251,146,60,0.45), inset 0 0 14px rgba(251,146,60,0.15);
+    transform:scale(0.96);
+    border-color:rgba(255,200,120,1);
   }
 
-  #btn-gas.pressed .gas-icon {
-    transform: scale(1.15);
+  /* Ручка газа — SVG внутри кнопки */
+  #btn-gas svg { width:62px; height:62px; }
+
+  /* ── NITRO кнопка — 65% от GAS = ~72px ── */
+  #nitro-wrap {
+    display:flex; flex-direction:column;
+    align-items:center; gap:0;
   }
 
-  /* ── Capsules top bar ── */
-  #capsules-bar {
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 28px;
-    background: rgba(0,0,0,0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 2px;
-    z-index: 100;
-    pointer-events: none;
+  #btn-nitro {
+    width:72px; height:72px;
+    border-radius:50%;
+    background:rgba(20,15,5,0.55);
+    border:2px solid rgba(255,255,255,0.18);
+    backdrop-filter:blur(6px);
+    -webkit-backdrop-filter:blur(6px);
+    cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+    user-select:none;
+    display:flex; align-items:center; justify-content:center;
+    position:relative; overflow:hidden;
+    transition:border-color 0.3s, box-shadow 0.3s;
+    flex-shrink:0;
   }
 
-  .cap {
-    width: 10px;
-    height: 16px;
-    border-radius: 3px;
-    background: #60a5fa;
-    position: relative;
-    transition: background 0.2s;
+  /* Заполнение нитро — круговой прогресс через conic-gradient */
+  #btn-nitro::before {
+    content:'';
+    position:absolute; inset:-2px;
+    border-radius:50%;
+    background: conic-gradient(
+      rgba(255,170,0,0.8) var(--nitro-pct, 0%),
+      transparent var(--nitro-pct, 0%)
+    );
+    transition:none;
+    pointer-events:none;
   }
 
-  .cap.dead {
-    background: #252535;
+  /* Внутренний круг поверх прогресса */
+  #btn-nitro::after {
+    content:'';
+    position:absolute; inset:3px;
+    border-radius:50%;
+    background:rgba(20,15,5,0.85);
+    pointer-events:none;
   }
 
-  .cap::after {
-    content: '';
-    position: absolute;
-    top: 2px; left: 2px;
-    width: 3px; height: 4px;
-    background: rgba(255,255,255,0.3);
-    border-radius: 1px;
+  /* Молния внутри */
+  #nitro-icon {
+    position:relative; z-index:2;
+    font-size:28px; line-height:1;
+    opacity:0.2;
+    transition:opacity 0.3s, filter 0.3s, transform 0.15s;
+    pointer-events:none;
   }
 
-  /* ── Progress ── */
-  #progress-bar {
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    height: 3px;
-    background: #111;
-    z-index: 100;
-    pointer-events: none;
+  #btn-nitro.ready {
+    border-color:rgba(255,200,0,0.8);
+    box-shadow:0 0 20px rgba(255,170,0,0.5), 0 0 40px rgba(255,170,0,0.2);
+    animation:nitro-pulse 0.8s ease-in-out infinite alternate;
   }
 
-  #progress-fill {
-    height: 100%;
-    background: #fb923c;
-    width: 0%;
-    transition: width 0.3s;
+  #btn-nitro.ready #nitro-icon {
+    opacity:1;
+    filter:drop-shadow(0 0 6px #ffcc00) drop-shadow(0 0 12px #ff8800);
+  }
+
+  #btn-nitro.active {
+    background:rgba(255,140,0,0.35);
+    box-shadow:0 0 40px rgba(255,140,0,0.8);
+  }
+
+  #btn-nitro.active #nitro-icon {
+    opacity:1;
+    filter:drop-shadow(0 0 8px #ffff00) drop-shadow(0 0 20px #ff8800);
+    animation:lightning-flash 0.15s ease-in-out infinite alternate;
+  }
+
+  @keyframes nitro-pulse {
+    from { box-shadow:0 0 14px rgba(255,170,0,0.4), 0 0 28px rgba(255,170,0,0.15); }
+    to   { box-shadow:0 0 28px rgba(255,170,0,0.7), 0 0 50px rgba(255,170,0,0.3); }
+  }
+
+  @keyframes lightning-flash {
+    from { transform:scale(0.95) rotate(-3deg); }
+    to   { transform:scale(1.05) rotate(3deg); }
   }
 
   #version {
-    position: absolute;
-    bottom: 4px;
-    left: 8px;
-    font-size: 8px;
-    letter-spacing: 2px;
-    color: #1a1a1a;
-    pointer-events: none;
-    z-index: 50;
+    position:absolute; bottom:4px; left:8px;
+    font-size:8px; letter-spacing:2px; color:#111;
+    pointer-events:none; z-index:50;
   }
 </style>
 </head>
 <body>
 <div id="app">
-
-  <!-- ── ИГРОВАЯ ЗОНА ── -->
   <div id="game-container">
-    <!-- Капсулы сверху -->
-    <div id="capsules-bar">
-      <!-- заполняется JS -->
-    </div>
-    <!-- Прогресс снизу -->
-    <div id="progress-bar">
-      <div id="progress-fill"></div>
-    </div>
-    <div id="version">LAST DELIVERY · v0.3 · PHASER 3</div>
+    <div id="capsules-bar"></div>
+    <div id="progress-bar"><div id="progress-fill"></div></div>
+    <div id="version">LAST DELIVERY · v0.4</div>
   </div>
 
-  <!-- ── ПАНЕЛЬ УПРАВЛЕНИЯ ── -->
   <div id="controls">
-
+    <!-- ЛЕВО -->
     <div id="left-panel">
-      <div class="ui-label">Speed</div>
-      <div id="speed-value">0</div>
+      <div class="ui-lbl">Speed</div>
+      <div id="speed-val">0</div>
       <div id="speed-unit">km/h</div>
-      <div class="ui-label" style="margin-top:6px;">Nitro</div>
-      <div id="nitro-row">
-        <div class="nitro-pip on" id="n0"></div>
-        <div class="nitro-pip on" id="n1"></div>
+      <div id="km-row">
+        <div class="ui-lbl">Distance</div>
+        <div id="km-val">0 m</div>
       </div>
     </div>
 
+    <!-- ЦЕНТР -->
     <div id="center-panel">
-      <div class="ui-label">Multiplier</div>
-      <div id="mult-value">×1.0</div>
+      <div class="ui-lbl">Multiplier</div>
+      <div id="mult-val">×1.0</div>
       <div id="mult-track"><div id="mult-fill"></div></div>
     </div>
 
+    <!-- ПРАВО -->
     <div id="right-panel">
+      <!-- NITRO — выровнен по верху с GAS -->
+      <div id="nitro-wrap">
+        <button id="btn-nitro">
+          <span id="nitro-icon">⚡</span>
+        </button>
+      </div>
+
+      <!-- GAS — большой круг -->
       <button id="btn-gas">
-        <span class="gas-icon">▶▶</span>
-        <span class="gas-text">GAS</span>
+        <!-- Стилизованная ручка газа мотоцикла -->
+        <svg viewBox="0 0 62 62" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Рукоятка руля — цилиндр вид сбоку -->
+          <!-- Основная труба руля -->
+          <rect x="8" y="26" width="46" height="10" rx="5"
+            fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+          <!-- Блик на трубе -->
+          <rect x="10" y="27.5" width="42" height="3" rx="1.5"
+            fill="rgba(255,255,255,0.18)"/>
+          <!-- Ручка газа — правая часть, более толстая -->
+          <rect x="38" y="22" width="16" height="18" rx="4"
+            fill="rgba(255,255,255,0.18)" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+          <!-- Рифление ручки газа -->
+          <line x1="42" y1="23" x2="42" y2="39" stroke="rgba(255,255,255,0.3)" stroke-width="1.2"/>
+          <line x1="45" y1="23" x2="45" y2="39" stroke="rgba(255,255,255,0.3)" stroke-width="1.2"/>
+          <line x1="48" y1="23" x2="48" y2="39" stroke="rgba(255,255,255,0.3)" stroke-width="1.2"/>
+          <line x1="51" y1="23" x2="51" y2="39" stroke="rgba(255,255,255,0.3)" stroke-width="1.2"/>
+          <!-- Торец ручки -->
+          <ellipse cx="54" cy="31" rx="2.5" ry="9"
+            fill="rgba(255,255,255,0.25)" stroke="rgba(255,255,255,0.5)" stroke-width="1"/>
+          <!-- Блик на ручке -->
+          <rect x="40" y="24" width="10" height="3" rx="1.5"
+            fill="rgba(255,255,255,0.25)"/>
+          <!-- Стрелка поворота ручки (намёк на газ) -->
+          <path d="M 20 20 Q 16 31 20 42" stroke="rgba(255,255,255,0.35)"
+            stroke-width="1.5" stroke-linecap="round" fill="none"/>
+          <path d="M 17 38 L 20 42 L 24 39"
+            stroke="rgba(255,255,255,0.35)" stroke-width="1.5"
+            stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
       </button>
     </div>
-
   </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
 <script>
-// ═══════════════════════════════
-//  LAST DELIVERY  Proto v0.3
-//  Одна кнопка: tap=едет, hold=быстрее, release=тормоз
-// ═══════════════════════════════
+// ═══════════════════════════════════════
+//  LAST DELIVERY  Proto v0.4
+//  Одна кнопка: газ/тормоз
+//  Нитро: заполняется от движения
+// ═══════════════════════════════════════
 
-const gc   = document.getElementById('game-container');
-const W    = window.innerWidth;
-const H    = gc.clientHeight || (window.innerHeight - 150);
-
-// Горизонт — поднят выше (65% высоты канваса)
-const GROUND_Y = H * 0.68;
-
-const C = {
-  road:      0x1c1a18,
-  roadLine:  0x3a3530,
-  ground:    0x2a1f0e,
-  rust:      0x8b4513,
-  rustL:     0xb5651d,
-  rustD:     0x5c2d0a,
-  wheel:     0x1a1a1a,
-  rim:       0x4a4035,
-  spoke:     0x5a5040,
-  skin:      0xe8d5b0,
-  shirt:     0xd4c49a,
-  pants:     0x3d4a2f,
-  boots:     0x2a1f10,
-  helmet:    0x3a4a30,
-  mask:      0x5a6a4a,
-  goggle:    0x8b7355,
-  exhaust:   0x666055,
-  smoke:     0x7a6a5a,
-  orange:    0xff6b00,
-  blue:      0x60a5fa,
-};
+const gc = document.getElementById('game-container');
+const W  = window.innerWidth;
+const H  = gc.clientHeight || (window.innerHeight - 160);
+const GROUND_Y = H * 0.70;
 
 // ── UI refs ──
-const elSpeed    = document.getElementById('speed-value');
-const elMult     = document.getElementById('mult-value');
+const elSpeed    = document.getElementById('speed-val');
+const elMult     = document.getElementById('mult-val');
 const elMultFill = document.getElementById('mult-fill');
-const elN0       = document.getElementById('n0');
-const elN1       = document.getElementById('n1');
+const elKm       = document.getElementById('km-val');
 const elProgFill = document.getElementById('progress-fill');
 const elCapsBar  = document.getElementById('capsules-bar');
 const btnGas     = document.getElementById('btn-gas');
+const btnNitro   = document.getElementById('btn-nitro');
+const nitroIcon  = document.getElementById('nitro-icon');
+const btnNitroEl = document.getElementById('btn-nitro');
 
-// Инициализируем капсулы
-function initCapsulesUI(n) {
+// ── Инициализация капсул ──
+function initCaps(n) {
   elCapsBar.innerHTML = '';
   for (let i = 0; i < 20; i++) {
     const d = document.createElement('div');
@@ -374,17 +354,37 @@ function initCapsulesUI(n) {
     elCapsBar.appendChild(d);
   }
 }
-initCapsulesUI(20);
+initCaps(20);
 
-// ── Одна кнопка GAS: holdTime накапливается ──
-let gasHeld     = false;
-let gasHoldTime = 0;   // сколько секунд держим
+// ── Состояние кнопок ──
+let gasHeld   = false;
+let nitroHeld = false;
 
-btnGas.addEventListener('touchstart', e => { e.preventDefault(); gasHeld = true;  btnGas.classList.add('pressed'); },   { passive: false });
-btnGas.addEventListener('touchend',   e => { e.preventDefault(); gasHeld = false; gasHoldTime = 0; btnGas.classList.remove('pressed'); }, { passive: false });
-btnGas.addEventListener('touchcancel',e => { e.preventDefault(); gasHeld = false; gasHoldTime = 0; btnGas.classList.remove('pressed'); }, { passive: false });
-btnGas.addEventListener('mousedown',  () => { gasHeld = true;  btnGas.classList.add('pressed'); });
-btnGas.addEventListener('mouseup',    () => { gasHeld = false; gasHoldTime = 0; btnGas.classList.remove('pressed'); });
+function bindBtn(el, onDown, onUp) {
+  el.addEventListener('touchstart', e => { e.preventDefault(); onDown(); }, { passive:false });
+  el.addEventListener('touchend',   e => { e.preventDefault(); onUp();   }, { passive:false });
+  el.addEventListener('touchcancel',e => { e.preventDefault(); onUp();   }, { passive:false });
+  el.addEventListener('mousedown',  () => onDown());
+  el.addEventListener('mouseup',    () => onUp());
+  el.addEventListener('mouseleave', () => onUp());
+}
+
+bindBtn(btnGas, () => { gasHeld = true;  btnGas.classList.add('pressed'); },
+                () => { gasHeld = false; btnGas.classList.remove('pressed'); });
+
+bindBtn(btnNitro, () => { nitroHeld = true; },
+                  () => { nitroHeld = false; });
+
+// Цвета
+const C = {
+  road:0x1c1a18, roadLine:0x3a3530, ground:0x2a1f0e,
+  rust:0x8b4513, rustL:0xb5651d, rustD:0x5c2d0a,
+  wheel:0x1a1a1a, rim:0x4a4035, spoke:0x5a5040,
+  skin:0xe8d5b0, shirt:0xd4c49a, pants:0x3d4a2f,
+  boots:0x2a1f10, helmet:0x3a4a30, mask:0x5a6a4a,
+  goggle:0x8b7355, exhaust:0x666055, smoke:0x7a6a5a,
+  orange:0xff6b00, blue:0x60a5fa,
+};
 
 class GameScene extends Phaser.Scene {
   constructor() { super('Game'); }
@@ -392,16 +392,19 @@ class GameScene extends Phaser.Scene {
   create() {
     this.spd        = 0;
     this.maxSpd     = 300;
-    this.accel      = 190;
-    this.brakeF     = 260;
-    this.friction   = 50;
+    this.accel      = 200;
+    this.brakeF     = 600;   // резкий тормоз как на мотоцикле
     this.multiplier = 1.0;
     this.multTimer  = 0;
     this.multStep   = 5;
     this.capsules   = 20;
-    this.nitro      = 2;
+
+    // Нитро
+    this.nitroPct   = 0;     // 0–100 заряд
     this.nitroOn    = false;
     this.nitroTimer = 0;
+    this.nitroReady = false;
+
     this.crashed    = false;
     this.crashTimer = 0;
     this.dist       = 0;
@@ -415,39 +418,39 @@ class GameScene extends Phaser.Scene {
     this.crashP     = [];
 
     this.createBG();
-    this.roadGfx    = this.add.graphics();
-    this.ptGfx      = this.add.graphics().setDepth(5);
-    this.bikeC      = this.add.container(W * 0.24, GROUND_Y - 24);
-    this.bikeGfx    = this.add.graphics();
+    this.roadGfx  = this.add.graphics();
+    this.ptGfx    = this.add.graphics().setDepth(5);
+    this.bikeC    = this.add.container(W * 0.24, GROUND_Y - 24);
+    this.bikeGfx  = this.add.graphics();
     this.bikeC.add(this.bikeGfx);
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.keyX    = this.input.keyboard.addKey('X');
+    this.keyN    = this.input.keyboard.addKey('N');
   }
 
-  // ── Фон ──
   createBG() {
     const g = this.add.graphics();
     for (let i = 0; i < H; i++) {
       const t  = i / H;
-      const r  = Math.round(0x1a + (0x30 - 0x1a) * Math.min(t * 1.6, 1));
-      const gb = Math.round(0x1a * (1 - t * 0.6));
-      g.fillStyle(Phaser.Display.Color.GetColor(r, gb, Math.round(gb * 0.5)));
+      const r  = Math.round(0x1a + (0x32 - 0x1a) * Math.min(t * 1.5, 1));
+      const gb = Math.round(0x1a * (1 - t * 0.65));
+      g.fillStyle(Phaser.Display.Color.GetColor(r, gb, Math.round(gb * 0.45)));
       g.fillRect(0, i, W, 1);
     }
-    g.fillStyle(0x8b3a00, 0.22);
-    g.fillRect(0, H * 0.4, W, H * 0.28);
+    g.fillStyle(0x8b3a00, 0.20);
+    g.fillRect(0, H * 0.38, W, H * 0.3);
 
     this.b1 = this.add.graphics();
     this.b2 = this.add.graphics();
     this.b3 = this.add.graphics();
-    this.drawBuildings(this.b1, 0.36, 0.10, 0x1a0f05, 0.55);
-    this.drawBuildings(this.b2, 0.50, 0.18, 0x100804, 0.80);
+    this.drawBuildings(this.b1, 0.34, 0.09, 0x1a0f05, 0.5);
+    this.drawBuildings(this.b2, 0.48, 0.17, 0x100804, 0.78);
     this.drawRuins(this.b3);
     this.bgL = [
-      { g: this.b1, s: 0.08 },
-      { g: this.b2, s: 0.18 },
-      { g: this.b3, s: 0.32 },
+      { g:this.b1, s:0.07 },
+      { g:this.b2, s:0.17 },
+      { g:this.b3, s:0.30 },
     ];
   }
 
@@ -455,12 +458,12 @@ class GameScene extends Phaser.Scene {
     g.fillStyle(col, a);
     for (let i = 0; i < 38; i++) {
       const x  = (i / 19) * W * 2 - W * 0.5;
-      const bw = Phaser.Math.Between(26, 72);
-      const bh = Phaser.Math.Between(H * 0.06, H * hv);
+      const bw = Phaser.Math.Between(24, 70);
+      const bh = Phaser.Math.Between(H * 0.05, H * hv);
       const y  = H * yb - bh;
       g.fillRect(x, y, bw, bh);
-      g.fillStyle(0xff6b00, 0.10);
-      for (let wy = y+5; wy < H*yb-5; wy += 11) {
+      g.fillStyle(0xff6b00, 0.09);
+      for (let wy = y+4; wy < H*yb-4; wy += 11) {
         for (let wx = x+3; wx < x+bw-3; wx += 9) {
           if (Math.random() > 0.52) g.fillRect(wx, wy, 4, 6);
         }
@@ -472,35 +475,32 @@ class GameScene extends Phaser.Scene {
   drawRuins(g) {
     g.fillStyle(0x0d0803, 0.93);
     const rs = [
-      {x:0,    w:55, h:72},{x:62,  w:36,h:48},
-      {x:135,  w:72, h:92},{x:245, w:30,h:40},
-      {x:305,  w:65, h:78},{x:W-128,w:50,h:62},
-      {x:W-70, w:66, h:85},
+      {x:0,w:55,h:70},{x:62,w:35,h:46},{x:135,w:70,h:90},
+      {x:245,w:30,h:38},{x:305,w:62,h:76},{x:W-130,w:50,h:60},{x:W-72,w:65,h:82},
     ];
     rs.forEach(r => {
       const y = GROUND_Y - r.h;
       g.fillRect(r.x, y, r.w, r.h);
       g.fillStyle(0x1a1a2e, 1);
-      for (let i=0;i<4;i++){
-        const bx=r.x+i*(r.w/4);
-        const bh=Phaser.Math.Between(4,15);
-        g.fillTriangle(bx,y, bx+r.w/4,y, bx+r.w/8,y-bh);
+      for (let i = 0; i < 4; i++) {
+        const bx = r.x + i * (r.w / 4);
+        const bh = Phaser.Math.Between(3, 14);
+        g.fillTriangle(bx, y, bx + r.w/4, y, bx + r.w/8, y - bh);
       }
       g.fillStyle(0x0d0803, 0.93);
     });
   }
 
   drawRoad() {
-    const g = this.roadGfx;
-    g.clear();
+    const g = this.roadGfx; g.clear();
     g.fillStyle(C.ground);
-    g.fillRect(0, GROUND_Y+8, W, H-GROUND_Y);
+    g.fillRect(0, GROUND_Y+8, W, H - GROUND_Y);
     g.fillStyle(C.road);
     g.fillRect(0, GROUND_Y+6, W, 42);
     g.fillStyle(C.roadLine);
-    const lw=25, gap=36;
-    const off = (this.dist * 0.72) % (lw+gap);
-    for (let x=-lw+off; x<W+lw; x+=lw+gap) {
+    const lw=24, gap=36;
+    const off = (this.dist * 0.7) % (lw+gap);
+    for (let x = -lw+off; x < W+lw; x += lw+gap) {
       g.fillRect(x, GROUND_Y+24, lw, 3);
     }
     g.fillStyle(C.rustD);
@@ -508,22 +508,19 @@ class GameScene extends Phaser.Scene {
   }
 
   drawBike() {
-    const g = this.bikeGfx;
-    g.clear();
+    const g = this.bikeGfx; g.clear();
     const wR=22, wF=32, wB=-54, aY=0, fY=-wR-2;
 
-    // Рама
     g.lineStyle(6, C.rust);
     g.strokeRect(wB+10, fY-20, wF-wB-20, 20);
     g.lineStyle(5, C.rustL);
     g.beginPath(); g.moveTo(wB+18,fY); g.lineTo(-4,fY-28); g.strokePath();
-    g.lineStyle(4,C.rustL);
+    g.lineStyle(4, C.rustL);
     g.beginPath(); g.moveTo(wB+18,fY); g.lineTo(wB+18,aY); g.strokePath();
-    g.lineStyle(4,C.rust);
+    g.lineStyle(4, C.rust);
     g.beginPath(); g.moveTo(-4,fY-28); g.lineTo(wF,aY); g.strokePath();
     g.beginPath(); g.moveTo(-4,fY-24); g.lineTo(wF,aY); g.strokePath();
 
-    // Бак
     g.fillStyle(C.rustL);
     g.fillRoundedRect(-26,fY-34,50,20,7);
     g.fillStyle(C.rust);
@@ -531,54 +528,56 @@ class GameScene extends Phaser.Scene {
     g.fillStyle(C.rustD,0.5);
     g.fillEllipse(-8,fY-26,16,7);
 
-    // Сиденье
     g.fillStyle(C.rustD);
     g.fillRoundedRect(wB+12,fY-38,44,11,4);
 
-    // Мотор
     g.fillStyle(C.exhaust);
     g.fillRect(-18,fY-2,28,18);
     g.fillStyle(C.rustD);
     g.fillRect(-14,fY+1,20,13);
 
-    // Выхлоп
     g.lineStyle(5,C.exhaust);
     g.beginPath(); g.moveTo(-16,fY+14); g.lineTo(wB+4,fY+17); g.lineTo(wB,aY+4); g.strokePath();
 
-    // Руль
+    // Нитро свечение выхлопа
+    if (this.nitroOn) {
+      g.fillStyle(0xff6b00, 0.6 + Math.sin(this.time.now * 0.02) * 0.3);
+      g.fillEllipse(wB - 8, aY + 4, 20, 10);
+      g.fillStyle(0xffcc00, 0.3);
+      g.fillEllipse(wB - 14, aY + 4, 14, 6);
+    }
+
     g.fillStyle(C.rustD);
     g.fillRect(-10,fY-50,4,18);
     g.fillStyle(C.exhaust);
     g.fillRect(-18,fY-54,18,5);
 
-    // Фара
     g.fillStyle(C.goggle);
     g.fillCircle(wF-1,fY-18,7);
-    g.fillStyle(0xffcc44,0.25);
+    g.fillStyle(0xffcc44,0.22);
     g.fillCircle(wF-1,fY-18,4);
 
-    // Колёса
-    [wB,wF].forEach(wx => {
-      g.lineStyle(10,C.wheel);
-      g.strokeCircle(wx,aY,wR);
-      g.lineStyle(1.5,C.spoke);
-      for(let s=0;s<8;s++){
-        const a=this.wAngle+(s/8)*Math.PI*2;
+    [wB, wF].forEach(wx => {
+      g.lineStyle(10, C.wheel);
+      g.strokeCircle(wx, aY, wR);
+      g.lineStyle(1.5, C.spoke);
+      for (let s = 0; s < 8; s++) {
+        const a = this.wAngle + (s/8)*Math.PI*2;
         g.beginPath();
-        g.moveTo(wx,aY);
-        g.lineTo(wx+Math.cos(a)*(wR-3),aY+Math.sin(a)*(wR-3));
+        g.moveTo(wx, aY);
+        g.lineTo(wx + Math.cos(a)*(wR-3), aY + Math.sin(a)*(wR-3));
         g.strokePath();
       }
-      g.lineStyle(3,C.rim);
-      g.strokeCircle(wx,aY,wR*0.52);
-      g.fillStyle(C.exhaust); g.fillCircle(wx,aY,4);
-      g.fillStyle(C.rustD);   g.fillCircle(wx,aY,2);
+      g.lineStyle(3, C.rim);
+      g.strokeCircle(wx, aY, wR*0.52);
+      g.fillStyle(C.exhaust); g.fillCircle(wx, aY, 4);
+      g.fillStyle(C.rustD);   g.fillCircle(wx, aY, 2);
     });
 
-    this.drawRay(g,fY);
+    this.drawRay(g, fY);
   }
 
-  drawRay(g,fY){
+  drawRay(g, fY) {
     const bx=-18, by=fY-36;
     g.fillStyle(C.shirt);
     g.fillRect(bx-7,by-26,17,28);
@@ -603,195 +602,238 @@ class GameScene extends Phaser.Scene {
     g.fillRoundedRect(bx-5,by-42,16,11,3);
   }
 
-  // ── Партикли ──
-  spawnDust(){
-    if(this.spd<30||Math.random()>0.35) return;
+  spawnDust() {
+    if (this.spd < 25 || Math.random() > 0.35) return;
     this.dustP.push({
-      x:this.bikeC.x-54, y:GROUND_Y+4,
-      vx:Phaser.Math.FloatBetween(-20,-65),
-      vy:Phaser.Math.FloatBetween(-15,-35),
-      life:1.0, size:Phaser.Math.FloatBetween(2,5),
-      col: this.nitroOn ? 0xff6b00 : C.smoke,
+      x: this.bikeC.x - 54, y: GROUND_Y + 5,
+      vx: Phaser.Math.FloatBetween(-18, -60),
+      vy: Phaser.Math.FloatBetween(-12, -32),
+      life: 1.0,
+      size: Phaser.Math.FloatBetween(2, 5),
+      col: this.nitroOn ? 0xff8800 : C.smoke,
     });
   }
 
-  triggerCrash(){
-    if(this.crashed||this.finished) return;
-    this.crashed=true; this.crashTimer=1.6;
-    const loss=Math.min(Math.ceil(this.spd/55),8);
-    this.capsules=Math.max(0,this.capsules-loss);
-    this.multiplier=1.0; this.multTimer=0;
-    this.shakeAmt=14; this.nitroOn=false; this.spd=0;
-    gasHeld=false; gasHoldTime=0; btnGas.classList.remove('pressed');
-    this.cameras.main.flash(180,244,63,94,false);
-    for(let i=0;i<22;i++){
-      const a=Math.random()*Math.PI*2;
-      const f=Phaser.Math.FloatBetween(60,200);
+  triggerCrash() {
+    if (this.crashed || this.finished) return;
+    this.crashed    = true;
+    this.crashTimer = 1.5;
+    const loss      = Math.min(Math.ceil(this.spd / 50), 8);
+    this.capsules   = Math.max(0, this.capsules - loss);
+    this.multiplier = 1.0;
+    this.multTimer  = 0;
+    this.shakeAmt   = 16;
+    this.nitroOn    = false;
+    this.spd        = 0;
+    gasHeld = false;
+    btnGas.classList.remove('pressed');
+    this.cameras.main.flash(160, 244, 63, 94, false);
+    for (let i = 0; i < 24; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const f = Phaser.Math.FloatBetween(70, 220);
       this.crashP.push({
-        x:this.bikeC.x, y:GROUND_Y-20,
-        vx:Math.cos(a)*f, vy:Math.sin(a)*f-85,
+        x:this.bikeC.x, y:GROUND_Y-22,
+        vx:Math.cos(a)*f, vy:Math.sin(a)*f-90,
         life:1.0, size:Phaser.Math.FloatBetween(2,7),
-        col:[C.rust,0xff6b00,C.rustL,0x333333][Math.floor(Math.random()*4)],
+        col:[C.rust,0xff6b00,C.rustL,0x222222][Math.floor(Math.random()*4)],
       });
     }
   }
 
-  updateP(dt){
-    this.dustP=this.dustP.filter(p=>{
+  updateParticles(dt) {
+    this.dustP = this.dustP.filter(p => {
       p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=55*dt; p.life-=dt*1.4; return p.life>0;
     });
-    this.crashP=this.crashP.filter(p=>{
-      p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=190*dt; p.life-=dt*1.1; return p.life>0;
+    this.crashP = this.crashP.filter(p => {
+      p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=190*dt; p.life-=dt*1.0; return p.life>0;
     });
   }
 
-  drawP(){
-    const g=this.ptGfx; g.clear();
-    this.dustP.forEach(p=>{
-      g.fillStyle(p.col,p.life*0.4);
-      g.fillCircle(p.x,p.y,p.size*p.life);
+  drawParticles() {
+    const g = this.ptGfx; g.clear();
+    this.dustP.forEach(p => {
+      g.fillStyle(p.col, p.life*0.4);
+      g.fillCircle(p.x, p.y, p.size*p.life);
     });
-    this.crashP.forEach(p=>{
-      g.fillStyle(p.col,p.life);
-      g.fillRect(p.x-p.size/2,p.y-p.size/2,p.size,p.size);
+    this.crashP.forEach(p => {
+      g.fillStyle(p.col, p.life);
+      g.fillRect(p.x-p.size/2, p.y-p.size/2, p.size, p.size);
     });
   }
 
-  updateUI(){
-    const kmh=Math.round(this.spd*0.8);
-    elSpeed.textContent=kmh;
-    elSpeed.style.color = kmh>160?'#ff2d55':kmh>100?'#ffaa00':'#fb923c';
+  activateNitro() {
+    if (this.nitroPct < 100 || this.nitroOn || this.crashed) return;
+    this.nitroOn    = true;
+    this.nitroTimer = 3.0;
+    this.nitroPct   = 0;
+    this.nitroReady = false;
+    btnNitroEl.classList.remove('ready');
+    btnNitroEl.classList.add('active');
+    this.cameras.main.flash(100, 251, 146, 60, false);
+  }
 
-    elMult.textContent='×'+this.multiplier.toFixed(1);
-    const mp=(this.multiplier-1.0)/2.0;
-    elMultFill.style.width=(mp*100)+'%';
-    elMult.style.color=this.multiplier>=3?'#ff2d55':this.multiplier>=2?'#ffaa00':this.multiplier>=1.5?'#ffcc44':'#fb923c';
+  updateNitroUI() {
+    // Обновляем conic-gradient через CSS custom property
+    btnNitroEl.style.setProperty('--nitro-pct', this.nitroPct.toFixed(1) + '%');
 
-    elN0.className='nitro-pip'+(this.nitro>=1?' on':'');
-    elN1.className='nitro-pip'+(this.nitro>=2?' on':'');
-
-    elProgFill.style.width=(Math.min(this.dist/this.levelLen,1)*100)+'%';
-
-    // Капсулы
-    for(let i=0;i<20;i++){
-      const c=document.getElementById('cap'+i);
-      if(c) c.className='cap'+(i<this.capsules?'':' dead');
+    if (this.nitroOn) {
+      btnNitroEl.classList.add('active');
+      btnNitroEl.classList.remove('ready');
+    } else if (this.nitroPct >= 100) {
+      btnNitroEl.classList.add('ready');
+      btnNitroEl.classList.remove('active');
+    } else {
+      btnNitroEl.classList.remove('ready', 'active');
     }
   }
 
-  showFinish(){
-    this.spd=0;
-    const px=W/2-120, py=H/2-85;
-    const p=this.add.graphics().setDepth(30);
-    p.fillStyle(0x000000,0.88);
-    p.fillRoundedRect(px,py,240,170,14);
-    p.lineStyle(2,0x34d399);
-    p.strokeRoundedRect(px,py,240,170,14);
-    this.add.text(W/2,py+28,'DELIVERED!',{fontFamily:'monospace',fontSize:'22px',color:'#34d399',fontStyle:'bold'}).setOrigin(0.5).setDepth(31);
-    const earned=Math.round(this.capsules*this.multiplier*10);
-    this.add.text(W/2,py+62,`${this.capsules} × ×${this.multiplier.toFixed(1)} = ${earned} coins`,{fontFamily:'monospace',fontSize:'13px',color:'#fb923c'}).setOrigin(0.5).setDepth(31);
-    const rb=this.add.text(W/2,py+130,'[ RESTART ]',{fontFamily:'monospace',fontSize:'15px',color:'#fb923c',fontStyle:'bold'}).setOrigin(0.5).setDepth(31).setInteractive();
-    rb.on('pointerdown',()=>{ gasHeld=false; gasHoldTime=0; this.scene.restart(); });
-    rb.on('pointerover',()=>rb.setColor('#ffcc44'));
-    rb.on('pointerout', ()=>rb.setColor('#fb923c'));
+  updateUI() {
+    const kmh = Math.round(this.spd * 0.8);
+    elSpeed.textContent = kmh;
+    elSpeed.style.color = kmh>160?'#ff2d55':kmh>100?'#ffaa00':'#fb923c';
+
+    elMult.textContent = '×' + this.multiplier.toFixed(1);
+    elMultFill.style.width = ((this.multiplier-1)/2*100)+'%';
+    elMult.style.color = this.multiplier>=3?'#ff2d55':this.multiplier>=2?'#ffaa00':this.multiplier>=1.5?'#ffcc44':'#fb923c';
+
+    elKm.textContent = Math.round(this.dist) + ' m';
+    elProgFill.style.width = (Math.min(this.dist/this.levelLen,1)*100)+'%';
+
+    for (let i = 0; i < 20; i++) {
+      const c = document.getElementById('cap'+i);
+      if (c) c.className = 'cap' + (i < this.capsules ? '' : ' dead');
+    }
+
+    this.updateNitroUI();
   }
 
-  update(time,delta){
-    const dt=delta/1000;
+  showFinish() {
+    this.spd = 0;
+    const px=W/2-120, py=H/2-90;
+    const p = this.add.graphics().setDepth(30);
+    p.fillStyle(0x000000,0.88);
+    p.fillRoundedRect(px,py,240,180,14);
+    p.lineStyle(2,0x34d399);
+    p.strokeRoundedRect(px,py,240,180,14);
+    this.add.text(W/2,py+30,'DELIVERED!',{
+      fontFamily:'monospace',fontSize:'22px',color:'#34d399',fontStyle:'bold'
+    }).setOrigin(0.5).setDepth(31);
+    const earned = Math.round(this.capsules*this.multiplier*10);
+    this.add.text(W/2,py+66,`${this.capsules} × ×${this.multiplier.toFixed(1)} = ${earned} coins`,{
+      fontFamily:'monospace',fontSize:'13px',color:'#fb923c'
+    }).setOrigin(0.5).setDepth(31);
+    const rb = this.add.text(W/2,py+140,'[ RESTART ]',{
+      fontFamily:'monospace',fontSize:'15px',color:'#fb923c',fontStyle:'bold'
+    }).setOrigin(0.5).setDepth(31).setInteractive();
+    rb.on('pointerdown', () => { gasHeld=false; this.scene.restart(); });
+    rb.on('pointerover', () => rb.setColor('#ffcc44'));
+    rb.on('pointerout',  () => rb.setColor('#fb923c'));
+  }
 
-    if(Phaser.Input.Keyboard.JustDown(this.keyX)) this.triggerCrash();
+  update(time, delta) {
+    const dt = delta / 1000;
 
-    // ── Обновляем время удержания кнопки ──
-    if(gasHeld) gasHoldTime+=dt;
-    else         gasHoldTime=0;
+    if (Phaser.Input.Keyboard.JustDown(this.keyX)) this.triggerCrash();
+    if (Phaser.Input.Keyboard.JustDown(this.keyN)) this.activateNitro();
 
-    // Газ также от клавиш
-    const keyGas = this.cursors.right.isDown||this.cursors.up.isDown;
-    const gas    = gasHeld||keyGas;
+    const gas = gasHeld || this.cursors.right.isDown || this.cursors.up.isDown;
 
-    if(this.crashed){
-      this.crashTimer-=dt;
-      if(this.crashTimer<=0) this.crashed=false;
-      this.updateP(dt); this.drawP(); this.updateUI();
+    if (this.crashed) {
+      this.crashTimer -= dt;
+      if (this.crashTimer <= 0) this.crashed = false;
+      this.updateParticles(dt); this.drawParticles();
+      this.updateUI();
       return;
     }
 
-    // ── Нитро — автоматически при долгом удержании ──
-    if(gasHoldTime>2.5&&this.nitro>0&&!this.nitroOn){
-      this.nitroOn=true; this.nitro--; this.nitroTimer=2.5;
-      this.cameras.main.flash(100,251,146,60,false);
-      this.time.delayedCall(15000,()=>{ if(this.nitro<2)this.nitro++; });
+    // ── Нитро таймер ──
+    if (this.nitroOn) {
+      this.nitroTimer -= dt;
+      if (this.nitroTimer <= 0) {
+        this.nitroOn = false;
+        btnNitroEl.classList.remove('active');
+      }
     }
 
-    if(this.nitroOn){
-      this.nitroTimer-=dt;
-      if(this.nitroTimer<=0) this.nitroOn=false;
+    // ── Кнопка нитро — активируем при нажатии если заряжен ──
+    if (nitroHeld && this.nitroPct >= 100) {
+      this.activateNitro();
     }
 
     // ── Движение ──
-    const nm = this.nitroOn?1.8:1.0;
-    const cm = this.maxSpd*nm;
+    const nm = this.nitroOn ? 1.8 : 1.0;
+    const cm = this.maxSpd * nm;
 
-    if(gas){
-      this.spd=Math.min(cm, this.spd+this.accel*nm*dt);
+    if (gas) {
+      this.spd = Math.min(cm, this.spd + this.accel * nm * dt);
     } else {
-      // Отпустили — тормозим
-      this.spd=Math.max(0, this.spd-this.brakeF*dt);
+      // Резкий тормоз как на мотоцикле
+      this.spd = Math.max(0, this.spd - this.brakeF * dt);
     }
 
-    this.dist+=this.spd*dt;
+    this.dist += this.spd * dt;
+
+    // ── Нитро заряжается от движения ──
+    if (this.spd > 20 && !this.nitroOn) {
+      // Быстрее заряжается при высокой скорости
+      const chargeRate = (this.spd / this.maxSpd) * 18;
+      this.nitroPct = Math.min(100, this.nitroPct + chargeRate * dt);
+      if (this.nitroPct >= 100 && !this.nitroReady) {
+        this.nitroReady = true;
+      }
+    } else if (this.spd <= 5 && !this.nitroOn) {
+      // При остановке заряд замирает (не убывает, просто стоп)
+    }
 
     // ── Множитель ──
-    if(this.spd>70){
-      this.multTimer+=dt;
-      if(this.multTimer>=this.multStep){
-        this.multTimer=0;
-        this.multiplier=Math.min(3.0,this.multiplier+0.5);
+    if (this.spd > 70) {
+      this.multTimer += dt;
+      if (this.multTimer >= this.multStep) {
+        this.multTimer = 0;
+        this.multiplier = Math.min(3.0, this.multiplier + 0.5);
       }
-    } else if(this.spd<20&&this.multiplier>1.0){
-      this.multiplier=Math.max(1.0,this.multiplier-0.3*dt);
+    } else if (this.spd < 15 && this.multiplier > 1.0) {
+      this.multiplier = Math.max(1.0, this.multiplier - 0.4*dt);
     }
 
     // ── Shake ──
-    if(this.shakeAmt>0){
-      this.shakeX=(Math.random()-0.5)*this.shakeAmt*2;
-      this.shakeY=(Math.random()-0.5)*this.shakeAmt*2;
-      this.shakeAmt*=0.8;
-      if(this.shakeAmt<0.4){this.shakeAmt=this.shakeX=this.shakeY=0;}
+    if (this.shakeAmt > 0) {
+      this.shakeX = (Math.random()-0.5)*this.shakeAmt*2;
+      this.shakeY = (Math.random()-0.5)*this.shakeAmt*2;
+      this.shakeAmt *= 0.78;
+      if (this.shakeAmt < 0.4) { this.shakeAmt=this.shakeX=this.shakeY=0; }
     }
 
     // ── Байк ──
-    this.wAngle+=(this.spd/22)*dt;
-    const bob=this.spd>8?Math.sin(time*0.009)*1.4:0;
-    this.bikeC.y=GROUND_Y-24+bob+this.shakeY;
-    this.bikeC.x=W*0.24+this.shakeX;
-    const tilt=this.nitroOn?-0.065:gas?-0.03:0.02;
-    this.bikeC.rotation=Phaser.Math.Linear(this.bikeC.rotation,tilt,0.1);
+    this.wAngle += (this.spd/22)*dt;
+    const bob = this.spd > 8 ? Math.sin(time*0.009)*1.4 : 0;
+    this.bikeC.y = GROUND_Y-24 + bob + this.shakeY;
+    this.bikeC.x = W*0.24 + this.shakeX;
+    const tilt = this.nitroOn?-0.07:gas?-0.03:0.015;
+    this.bikeC.rotation = Phaser.Math.Linear(this.bikeC.rotation, tilt, 0.1);
 
     // ── Параллакс ──
-    this.bgL.forEach(l=>{ l.g.x=-((this.dist*l.s)%W); });
+    this.bgL.forEach(l => { l.g.x = -((this.dist*l.s)%W); });
 
     this.drawRoad();
     this.drawBike();
     this.spawnDust();
-    this.updateP(dt);
-    this.drawP();
+    this.updateParticles(dt);
+    this.drawParticles();
     this.updateUI();
 
-    if(this.dist>=this.levelLen&&!this.finished){
-      this.finished=true;
+    if (this.dist >= this.levelLen && !this.finished) {
+      this.finished = true;
       this.showFinish();
     }
   }
 }
 
-// Ждём пока браузер посчитает высоту game-container
 window.addEventListener('load', () => {
-  const gcH = gc.clientHeight;
+  const gcH = gc.clientHeight || (window.innerHeight - 160);
   new Phaser.Game({
     type: Phaser.AUTO,
-    width: W,
-    height: gcH,
+    width: W, height: gcH,
     parent: 'game-container',
     backgroundColor: '#1a1a2e',
     scene: [GameScene],
