@@ -15,7 +15,7 @@
   /* ── Панель управления — минимальная высота, кнопки выезжают вверх ── */
   #controls {
     flex-shrink:0;
-    height:155px;
+    height:90px;
     background:#080808;
     border-top:1px solid #2a1a08;
     display:flex;
@@ -23,7 +23,7 @@
     justify-content:space-between;
     padding:0 18px;
     padding-bottom:max(4px,env(safe-area-inset-bottom));
-
+    overflow:visible;       /* кнопки выходят за верхний край */
     position:relative;
     z-index:20;
   }
@@ -89,35 +89,15 @@
   /* Все анимации нитро отключены пока не реализована логика */
   #btn-nitro.ready,#btn-nitro.active { box-shadow:0 2px 12px rgba(0,0,0,0.5); animation:none; border-color:rgba(100,120,100,0.55); background:rgba(20,22,20,0.75); }
   #btn-nitro.ready #nitro-icon,#btn-nitro.active #nitro-icon { filter:grayscale(0.6) brightness(0.8); opacity:0.55; animation:none; }
-  #version { position:absolute; bottom:3px; left:8px; font-size:7px; letter-spacing:2px; color:#111; pointer-events:none; z-index:50; }
+
 </style>
 </head>
 <body>
 <div id="app">
   <div id="game-container">
     <div id="capsules-bar"></div>
-    <div id="version">LAST DELIVERY · v1.1</div>
-    <!-- Временная кнопка рестарта для тестов -->
-    <div id="btn-restart" style="
-      display:none;
-      position:absolute;
-      top:6px;
-      left:50%;
-      transform:translateX(-50%);
-      z-index:200;
-      background:rgba(15,8,3,0.55);
-      border:1px solid rgba(251,146,60,0.25);
-      color:rgba(251,146,60,0.4);
-      font-family:monospace;
-      font-size:13px;
-      letter-spacing:3px;
-      padding:7px 22px;
-      border-radius:20px;
-      cursor:pointer;
-      -webkit-tap-highlight-color:transparent;
-      backdrop-filter:blur(4px);
-      white-space:nowrap;
-    ">START OVER</div>
+    <div id="version">LAST DELIVERY · v1.2</div>
+    <div id="btn-restart" style="display:none;position:absolute;top:6px;left:50%;transform:translateX(-50%);z-index:200;background:rgba(15,8,3,0.55);border:1px solid rgba(251,146,60,0.25);color:rgba(251,146,60,0.4);font-family:monospace;font-size:13px;letter-spacing:3px;padding:7px 22px;border-radius:20px;cursor:pointer;-webkit-tap-highlight-color:transparent;backdrop-filter:blur(4px);white-space:nowrap;">START OVER</div>
   </div>
   <div id="controls">
     <div id="speedo-wrap">
@@ -153,20 +133,15 @@ const KMH_RISE     = 8;
 const KMH_FALL     = 55;
 const BG_KMH_RISE  = 48;
 const KMH_MAX      = 110;
-const PX_PER_KMH   = 13.5;  // медленнее фон
+const PX_PER_KMH   = 13.5;
 const WHEEL_DIV    = 12;
 const BURNOUT_DUR  = 0.44;
 const BOUNCE_STR   = 140;
 const BOUNCE_GRAV  = 270;
 const TW_FACTOR    = 6;
-const TTW_FACTOR   = 18;  // terrain tile (длиннее фона — больше уникальных локаций)
-
-// ── Terrain constants ──
-const T_STEP  = 22;   // px between terrain points
-const T_AMP1  = 58;   // большие затяжные холмы
-const T_AMP2  = 18;   // средние
-const T_AMP3  = 6;    // мелкая рябь
-const T_SLOPE_FORCE = 14;  // мягче физика склона
+const TTW_FACTOR   = 18;
+const T_STEP       = 22;
+const T_SLOPE_FORCE= 14;
 
 // ── Спидометр ──
 const SC=document.getElementById('speedo'),sx=SC.getContext('2d');
@@ -227,29 +202,29 @@ function bindBtn(el,d,u){
 bindBtn(btnGas,onGasDown,onGasUp);
 bindBtn(btnNitro,()=>nitroHeld=true,()=>nitroHeld=false);
 
-// ── Кнопка рестарта (тестовая) ──
+// ── Кнопка рестарта ──
 const btnRestart=document.getElementById('btn-restart');
-btnRestart.addEventListener('touchstart',e=>{e.preventDefault();doRestart();},{passive:false});
-btnRestart.addEventListener('mousedown',()=>doRestart());
 function doRestart(){
-  const gs=window._gs;
-  if(!gs)return;
-  gasHeld=false; nitroHeld=false;
-  btnGas.classList.remove('pressed');
-  gs.bgScroll=0; gs.bgScrollKmh=0; gs.vizKmh=0;
-  gs.bikeBaseY=BR; gs.groundY=GY; gs.slopeAng=0;
-  gs.bikeVY=0; gs.onGround=true; gs.jumpPhase='none';
-  gs.bouncing=false; gs.bounceY=0; gs.bounceVY=0;
-  gs.burnoutActive=false; gs.prepActive=false; gs.lurchActive=false;
-  gs.brakeActive=false; gs.brakeLifted=0;
-  gs.stopSpringActive=false; gs.shakeAmt=0; gs.shakeX=0; gs.shakeY=0;
-  gs.wAngle=0; gs.wheelRPS=0; gs.targetRot=0;
-  gs.bikeC.rotation=0;
-  gs.crashed=false; gs.nitroOn=false; gs.nitroPct=0;
-  gs.gasOffTime=0; gs.isFirstStart=true;
-  gs.dustP=[]; gs.crashP=[];
+  const gs=window._gs;if(!gs)return;
+  gasHeld=false;btnGas.classList.remove('pressed');
+  gs.bgScroll=0;gs.bgScrollKmh=0;gs.vizKmh=0;
+  gs.bikeBaseY=BR;gs.groundY=GY;gs.slopeAng=0;
+  gs.bikeVY=0;gs.onGround=true;gs.jumpPhase='none';
+  gs.bouncing=false;gs.bounceY=0;gs.bounceVY=0;
+  gs.squashAmt=0;gs.squashTimer=0;gs.bounceCount=0;
+  gs.burnoutActive=false;gs.prepActive=false;gs.lurchActive=false;
+  gs.brakeActive=false;gs.stopSpringActive=false;
+  gs.shakeAmt=0;gs.shakeX=0;gs.shakeY=0;
+  gs.wAngle=0;gs.wheelRPS=0;gs.targetRot=0;
+  gs.bikeC.rotation=0;gs.crashed=false;
+  gs.nitroOn=false;gs.nitroPct=0;gs.gasOffTime=0;gs.isFirstStart=true;
+  gs.dustP=[];gs.crashP=[];
   gs.bgLayers.forEach(l=>{l.g.x=0;});
   btnRestart.style.display='none';
+}
+if(btnRestart){
+  btnRestart.addEventListener('touchstart',e=>{e.preventDefault();doRestart();},{passive:false});
+  btnRestart.addEventListener('mousedown',doRestart);
 }
 
 // ── Цвета ──
@@ -284,8 +259,54 @@ function drawGarageAt(g, x) {
 // ── Булыжники ──
 function genCobbles(dense){
   const d=[];let x=0,s=999;
-  while(x<window._TW){const w=12+((s*9301+49297)%233280)/233280*22,h=6+(((s+1)*9301+49297)%233280)/233280*11,y=GY+8+(((s+2)*9301+49297)%233280)/233280*28,sh=Math.floor((((s+3)*9301+49297)%233280)/233280*5);d.push({x,y,w,h,sh});x+=1+(((s+4)*9301+49297)%233280)/233280*(dense?5:13);s+=5;}
+  while(x<window._TTW){const w=12+((s*9301+49297)%233280)/233280*22,h=6+(((s+1)*9301+49297)%233280)/233280*11,y=GY+8+(((s+2)*9301+49297)%233280)/233280*28,sh=Math.floor((((s+3)*9301+49297)%233280)/233280*5);d.push({x,y,w,h,sh});x+=1+(((s+4)*9301+49297)%233280)/233280*(dense?5:13);s+=5;}
   return d;
+}
+
+// ── Сегментный рельеф ──
+function buildTerrain(ttw,baseY){
+  const ss=t=>t*t*(3-2*t);
+  const sp=t=>t<0.5?2*t*t:1-2*(1-t)*(1-t);
+  let cx=0,cy=baseY;const segs=[];
+  function seg(type,w,dy,amp){segs.push({type,sx:cx,ex:cx+w,sy:cy,ey:cy+dy,amp:amp||0});cx+=w;cy+=dy;}
+  seg('FLAT',   W*7.0,   0,  0);
+  seg('BUMPS',  W*0.5,   0, 14);
+  seg('PEAK_UP',W*0.65, -95, 0);
+  seg('FLAT',   W*0.2,   0,  0);
+  seg('PEAK_DN',W*0.55,+108, 0);
+  seg('BUMPS',  W*0.5,   0, 30);
+  seg('HILL_UP',W*0.9,  -80, 0);
+  seg('FLAT',   W*0.25,  0,  0);
+  seg('HILL_DN',W*0.7,  +90, 0);
+  seg('VALLEY', W*0.7,   0, 62);
+  seg('PEAK_UP',W*0.55,-108, 0);
+  seg('FLAT',   W*0.15,  0,  0);
+  seg('PEAK_DN',W*0.65,+115, 0);
+  seg('BUMPS',  W*0.6, +12, 22);
+  seg('HILL_UP',W*0.8,  -75, 0);
+  seg('FLAT',   W*0.3,   0,  0);
+  seg('HILL_DN',W*0.7,  +80, 0);
+  const retDY=baseY-cy;
+  seg('HILL_UP',W*0.8,retDY, 0);
+  seg('FLAT',   W*0.4,   0,  0);
+  const pts=[];
+  segs.forEach(sg=>{
+    const len=sg.ex-sg.sx;
+    for(let x=sg.sx;x<sg.ex;x+=T_STEP){
+      const t=Math.min(1,(x-sg.sx)/len);let y;
+      switch(sg.type){
+        case'FLAT':y=sg.sy;break;
+        case'HILL_UP':case'HILL_DN':y=sg.sy+(sg.ey-sg.sy)*ss(t);break;
+        case'PEAK_UP':case'PEAK_DN':y=sg.sy+(sg.ey-sg.sy)*sp(t);break;
+        case'VALLEY':y=sg.sy+(sg.ey-sg.sy)*t+Math.sin(t*Math.PI)*sg.amp;break;
+        case'BUMPS':y=sg.sy+(sg.ey-sg.sy)*t+Math.sin(t*Math.PI*4)*sg.amp+Math.sin(t*Math.PI*7.3+0.8)*sg.amp*0.42;break;
+        default:y=sg.sy;
+      }
+      pts.push({x,y});
+    }
+  });
+  while(pts.length===0||pts[pts.length-1].x<ttw)pts.push({x:pts.length*T_STEP,y:baseY});
+  return pts;
 }
 
 // ── Функция фона (из v0.9) ──
@@ -312,82 +333,6 @@ function buildBG(g, GY, W) {
   tower(3*W+30,GY*.55,0);tower(3*W+120,GY*.65,.12);waterTower(3*W+220,GY*.60);tower(3*W+320,GY*.48,-.08);tower(3*W+420,GY*.72,0);waterTower(3*W+520,GY*.50);ruin(3*W+W-60,20,GY*.18,0x0e0c0a);
   skyscraper(4*W+10,45,GY*.68);ruin(4*W+70,25,GY*.32,0x100e0c);skyscraper(4*W+120,55,GY*.75);skyscraper(4*W+200,38,GY*.60);ruin(4*W+265,30,GY*.38,0x0f0d0b);skyscraper(4*W+320,60,GY*.70);ruin(4*W+410,22,GY*.24,0x100e0c);skyscraper(4*W+460,48,GY*.65);
   bridge(5*W+10);ruin(5*W+200,55,GY*.58,0x0d0b09);waterTower(5*W+290,GY*.55);ruin(5*W+370,35,GY*.42,0x0f0d0b);bridge(5*W+450);ruin(5*W+620,48,GY*.50,0x0d0b09);ruin(5*W+W-50,30,GY*.30,0x100e0c);
-}
-
-// ── Сегментный рельеф ──
-function buildTerrain(ttw, baseY){
-  const step = T_STEP;
-  const ss = t=>t*t*(3-2*t);  // smoothstep
-
-  // Описываем трассу сегментами
-  // dy > 0 = вниз (глубже), dy < 0 = вверх (подъём)
-  let cx=0, cy=baseY;
-  const segs=[];
-  function seg(type, w, dy, amp){
-    segs.push({type, sx:cx, ex:cx+w, sy:cy, ey:cy+dy, amp:amp||0});
-    cx+=w; cy+=dy;
-  }
-
-  // === МАРШРУТ ===
-  // 1. Прямая выезд из гаража (W*2.5 = ~1000px)
-  seg('FLAT',    W*7.0,   0,   0);
-  // 2. Плавный въезд в бездорожье — лёгкие кочки
-  seg('BUMPS',   W*0.8,   0,  10);
-  // 3. Первый большой подъём
-  seg('HILL_UP', W*1.4,  -55,  0);
-  // 4. Плато на высоте
-  seg('FLAT',    W*0.5,   0,   0);
-  // 5. Длинный плавный спуск ниже базы
-  seg('HILL_DN', W*1.6,  +72,  0);
-  // 6. Яма — резкий дип
-  seg('VALLEY',  W*0.9,   0,  48);
-  // 7. Кочки на низком уровне
-  seg('BUMPS',   W*0.9,  +8,  25);
-  // 8. Крутой подъём — самый высокий
-  seg('HILL_UP', W*1.4,  -80,  0);
-  // 9. Короткое плато
-  seg('FLAT',    W*0.4,   0,   0);
-  // 10. Длинный плавный спуск обратно
-  seg('HILL_DN', W*2.0,  +85,  0);
-  // 11. Финальные кочки
-  seg('BUMPS',   W*1.0,   0,  20);
-  // 12. Возврат к базе для бесшовного loop
-  const retDY = baseY - cy;
-  seg('HILL_UP', W*1.0, retDY, 0);
-  seg('FLAT',    W*0.5,   0,   0);
-  // (Если TTW больше — заполняем плоским)
-
-  // Генерируем точки из сегментов
-  const pts=[];
-  segs.forEach(sg=>{
-    const len = sg.ex - sg.sx;
-    for(let x=sg.sx; x<sg.ex; x+=step){
-      const t=Math.min(1,(x-sg.sx)/len);
-      let y;
-      switch(sg.type){
-        case 'FLAT':
-          y=sg.sy; break;
-        case 'HILL_UP':
-        case 'HILL_DN':
-          y=sg.sy+(sg.ey-sg.sy)*ss(t); break;
-        case 'VALLEY':
-          // Дип в середине, начало и конец одинаковые
-          y=sg.sy+(sg.ey-sg.sy)*t + Math.sin(t*Math.PI)*sg.amp; break;
-        case 'BUMPS':
-          y=sg.sy+(sg.ey-sg.sy)*t
-            +Math.sin(t*Math.PI*4)*sg.amp
-            +Math.sin(t*Math.PI*7.3+0.8)*sg.amp*0.42; break;
-      }
-      pts.push({x,y});
-    }
-  });
-
-  // Финальная точка + заполнение до TTW плоским
-  const lastY = segs[segs.length-1].ey;
-  while(pts.length===0||pts[pts.length-1].x<ttw){
-    pts.push({x:pts.length*step, y:lastY});
-  }
-  return pts;
 }
 
 class GameScene extends Phaser.Scene{
@@ -460,11 +405,14 @@ class GameScene extends Phaser.Scene{
 
     this.dCA = genCobbles(true);
     this.dCB = genCobbles(false);
-    // ── Рельеф (свой тайл TTW, длиннее фонового TW) ──
-    this.terrain  = buildTerrain(window._TTW, GY);
-    this.terrainTW= window._TTW;
-    this.groundY  = GY;
-    this.slopeAng = 0;
+    this.TW  = window._TW;
+    this.terrain   = buildTerrain(window._TTW, GY);
+    this.terrainTW = window._TTW;
+    this.groundY   = GY;
+    this.slopeAng  = 0;
+    this.squashAmt = 0;
+    this.squashTimer=0;
+    this.bounceCount=0;
 
     // ── Небо ──
     this.createSky();
@@ -541,44 +489,52 @@ class GameScene extends Phaser.Scene{
     g.fillStyle(0xffaa00,.40);g.fillRect(0,GY-5,W,5);
   }
 
-  // ── Рельеф + булыжники ──
+  // ── Рельеф ──
+  getTerrainY(worldX){
+    const tw=this.terrainTW;
+    const x=((worldX%tw)+tw)%tw;
+    const idx=Math.floor(x/T_STEP);
+    const t=(x-idx*T_STEP)/T_STEP;
+    const len=this.terrain.length;
+    const y0=this.terrain[idx%len]?.y??GY;
+    const y1=this.terrain[(idx+1)%len]?.y??GY;
+    return y0+(y1-y0)*t;
+  }
+  getSlopeAngle(worldX){
+    const tw=this.terrainTW;
+    const x=((worldX%tw)+tw)%tw;
+    const idx=Math.floor(x/T_STEP);
+    const len=this.terrain.length;
+    const p0=this.terrain[idx%len];
+    const p1=this.terrain[(idx+1)%len];
+    if(!p0||!p1)return 0;
+    return Math.atan2(p1.y-p0.y,T_STEP);
+  }
+
   drawTerrain(){
-    const g=this.gG; g.clear();
+    const g=this.gG;g.clear();
     const scroll=this.bgScroll;
-    // Видимые точки рельефа (с запасом по краям)
     const pts=[];
-    for(let sx=-T_STEP;sx<=W+T_STEP;sx+=T_STEP){
-      pts.push({x:sx, y:this.getTerrainY(scroll+sx)});
-    }
-    // Грунт: polygon рельеф + низ экрана
-    g.fillStyle(0x18130a,1);
-    const polyPts=pts.map(p=>new Phaser.Geom.Point(p.x,p.y));
-    polyPts.push(new Phaser.Geom.Point(pts[pts.length-1].x,H));
-    polyPts.push(new Phaser.Geom.Point(pts[0].x,H));
-    g.fillPoints(polyPts,true);
-    // Тёмный срез грунта снизу
-    g.fillStyle(0x100d07,1);g.fillRect(0,H-16,W,16);
-    // Линия поверхности
-    g.lineStyle(3,0x2a1e0c,1);
-    g.beginPath();g.moveTo(pts[0].x,pts[0].y);
-    pts.slice(1).forEach(p=>g.lineTo(p.x,p.y));
-    g.strokePath();
-    // Булыжники — следуют рельефу
-    const sA=(scroll*.92)%this.TW, sB=(scroll*.40)%this.TW;
-    [0,this.TW].forEach(rep=>{
-      this.dCB.forEach(s=>{
-        const sx_=s.x+rep-sB;if(sx_>W+40||sx_+s.w<-20)return;
-        const ty=this.getTerrainY(scroll+sx_);
-        g.fillStyle(0x1c1610+s.sh*0x010100,.58);
-        g.fillRoundedRect(sx_,ty-3,s.w*.65,s.h*.45,2);
-      });
-      this.dCA.forEach(s=>{
-        const sx_=s.x+rep-sA;if(sx_>W+50||sx_+s.w<-30)return;
-        const ty=this.getTerrainY(scroll+sx_);
-        g.fillStyle(0x22180e+s.sh*0x020200,.88);
-        g.fillRoundedRect(sx_,ty-s.h+3,s.w,s.h,3);
-        g.fillStyle(0x382c1a,.38);g.fillRect(sx_+2,ty-s.h+4,s.w-4,2);
-      });
+    for(let sx=-T_STEP;sx<=W+T_STEP;sx+=T_STEP)pts.push({x:sx,y:this.getTerrainY(scroll+sx)});
+    // Слой 1
+    const poly=pts.map(p=>new Phaser.Geom.Point(p.x,p.y));
+    poly.push(new Phaser.Geom.Point(pts[pts.length-1].x,H));poly.push(new Phaser.Geom.Point(pts[0].x,H));
+    g.fillStyle(0x1a1308,1);g.fillPoints(poly,true);
+    // Слой 2
+    const mid=pts.map(p=>new Phaser.Geom.Point(p.x,p.y+20));
+    mid.push(new Phaser.Geom.Point(pts[pts.length-1].x,H));mid.push(new Phaser.Geom.Point(pts[0].x,H));
+    g.fillStyle(0x140f06,1);g.fillPoints(mid,true);
+    // Слой 3 (тёмное дно)
+    g.fillStyle(0x0d0a04,1);g.fillRect(0,H-35,W,35);
+    // Корка + оранжевая линия
+    g.lineStyle(5,0x3a2a12,1);g.beginPath();g.moveTo(pts[0].x,pts[0].y);pts.slice(1).forEach(p=>g.lineTo(p.x,p.y));g.strokePath();
+    g.lineStyle(1.5,0xff8c00,0.35);g.beginPath();g.moveTo(pts[0].x,pts[0].y);pts.slice(1).forEach(p=>g.lineTo(p.x,p.y));g.strokePath();
+    // Булыжники
+    const TTW=this.terrainTW;
+    const sA=(scroll*.92)%TTW,sB=(scroll*.40)%TTW;
+    [0,TTW].forEach(rep=>{
+      this.dCB.forEach(s=>{const sx_=s.x+rep-sB;if(sx_>W+40||sx_+s.w<-20)return;const ty=this.getTerrainY(scroll+sx_);g.fillStyle(0x1c1610+s.sh*0x010100,.58);g.fillRoundedRect(sx_,ty-3,s.w*.65,s.h*.45,2);});
+      this.dCA.forEach(s=>{const sx_=s.x+rep-sA;if(sx_>W+50||sx_+s.w<-30)return;const ty=this.getTerrainY(scroll+sx_);g.fillStyle(0x22180e+s.sh*0x020200,.88);g.fillRoundedRect(sx_,ty-s.h+3,s.w,s.h,3);g.fillStyle(0x382c1a,.38);g.fillRect(sx_+2,ty-s.h+4,s.w-4,2);});
     });
   }
 
@@ -669,37 +625,14 @@ class GameScene extends Phaser.Scene{
     g.fillStyle(C.goggle);g.fillRoundedRect(bx-4,by-48,14,6,2);g.fillStyle(C.mask);g.fillRoundedRect(bx-5,by-42,16,11,3);
   }
 
-  // ── Рельеф: Y земли в мировой точке ──
-  getTerrainY(worldX){
-    const tw=this.terrainTW;
-    const x=((worldX%tw)+tw)%tw;
-    const idx=Math.floor(x/T_STEP);
-    const t=(x-idx*T_STEP)/T_STEP;
-    const len=this.terrain.length;
-    const y0=this.terrain[idx%len]?.y??GY;
-    const y1=this.terrain[(idx+1)%len]?.y??GY;
-    return y0+(y1-y0)*t;
-  }
-
-  getSlopeAngle(worldX){
-    const tw=this.terrainTW;
-    const x=((worldX%tw)+tw)%tw;
-    const idx=Math.floor(x/T_STEP);
-    const len=this.terrain.length;
-    const p0=this.terrain[idx%len];
-    const p1=this.terrain[(idx+1)%len];
-    if(!p0||!p1)return 0;
-    return Math.atan2(p1.y-p0.y, T_STEP);
-  }
-
   startJump(strong=true){
     if(!this.onGround||this.crashed||this.jumpPhase!=='none')return;
-    // +30% к обоим прыжкам: слабый -308*1.3=-400, сильный -560*1.3=-728
+    // +30% к обоим: слабый -400, сильный -728
     this.bikeVY   = strong ? -728 : -400;
     this.onGround = false;
     this.jumpPhase= 'air';
     this.targetRot= -0.22;
-    this.boostImpulseDone = false;
+    this.boostImpulseDone=false;
   }
 
   updateJump(dt){
@@ -707,69 +640,51 @@ class GameScene extends Phaser.Scene{
       case'air':
         this.bikeBaseY+=this.bikeVY*dt;
         this.bikeVY+=960*dt;
-        // Козлик в воздухе: нос сильно задран вверх
-        const airTgt = this.bikeVY < 0 ? -0.42 : -0.28; // взлёт — сильнее, снижение — чуть меньше
-        this.targetRot=Phaser.Math.Linear(this.targetRot, airTgt, .06);
+        // 56° в воздухе — нос задран, заднее колесо вниз
+        const airTgt=this.bikeVY<0?-0.98:-0.62;
+        this.targetRot=Phaser.Math.Linear(this.targetRot,airTgt,.06);
         if(this.bikeBaseY>=this.groundY-26){
           this.bikeBaseY=this.groundY-26;this.bikeVY=0;this.onGround=true;
-          this.jumpPhase='landing';this.jumpTimer=0.30;
-          this._triggerBounce(185);       // первый отскок выше
-          this.targetRot=-0.28;           // переднее колесо сильнее вверх
-          this.landingWobble=true;
-          this.landingWobbleAmt=0.16;
-          this.landingWobblePhase=0;
-          this.shakeAmt=5;
+          this.jumpPhase='landing';this.jumpTimer=0.28;
+          // Enduro: нос РЕЗКО вниз, быстрый пивот
+          this.targetRot=0.20;
+          this.shakeAmt=3;
+          this.landingWobble=true;this.landingWobbleAmt=0.08;this.landingWobblePhase=0;
         }
         break;
       case'landing':
         this.jumpTimer-=dt;
-        // Плавно выравниваем с задранного положения
-        this.targetRot=Phaser.Math.Linear(this.targetRot,0.0,.06);
+        // Быстрое выравнивание — передняя ось легла
+        this.targetRot=Phaser.Math.Linear(this.targetRot,0,.22);
         if(this.jumpTimer<=0){this.jumpPhase='none';this.targetRot=0;}
         break;
     }
   }
 
-  // ── Отскок: 1й высокий (65°), 2й ниже (36°), короткий gap ──
-  _triggerBounce(strength){this.bouncing=true;this.bounceVY=-(strength||BOUNCE_STR);this.bounceY=0;}
-
-  updateBounce(dt){
-    if(!this.bouncing)return;
-    this.bounceY+=this.bounceVY*dt;
-    this.bounceVY+=500*dt;  // высокая гравитация = короткий gap между отскоками
-    if(this.bounceY>=0){
-      this.bounceY=0;
-      const spd=Math.abs(this.bounceVY);
-      if(spd>55){
-        this.bounceVY=-spd*.55; // 2й: 36/65≈55% от первого
-      } else if(spd>20){
-        this.bounceVY=-spd*.18; // микро-третий
-      } else {
-        this.bouncing=false;this.bounceVY=0;
-      }
-    }
-  }
+  // Без отскока — enduro стиль
+  _triggerBounce(strength){this.bouncing=false;this.bounceY=0;this.bounceVY=0;this.squashAmt=0;this.bounceCount=0;}
+  updateBounce(dt){}
 
   spawnBurnoutSmoke(){
-    // Дым и камни — только при старте (пока isFirstStart)
-    if(!this.isFirstStart) return;
+    // Дым и камни — только при первом старте
+    if(!this.isFirstStart)return;
     for(let i=0;i<4;i++){
       this.dustP.push({
         x:this.bikeC.x-52+Phaser.Math.Between(-5,5),
-        y:GY,
+        y:this.groundY,
         vx:Phaser.Math.FloatBetween(-40,-6),
         vy:Phaser.Math.FloatBetween(-18,-50),
-        life:0.45, size:Phaser.Math.FloatBetween(5,13), col:0xc0c0c0,
+        life:0.45,size:Phaser.Math.FloatBetween(5,13),col:0xc0c0c0,
       });
     }
     if(Math.random()>0.25){
       for(let i=0;i<4;i++){
         this.dustP.push({
           x:this.bikeC.x-52+Phaser.Math.Between(-6,6),
-          y:GY-3,
+          y:this.groundY-3,
           vx:Phaser.Math.FloatBetween(-140,-60),
           vy:Phaser.Math.FloatBetween(-80,-180),
-          life:1.0, size:Phaser.Math.FloatBetween(2,5),
+          life:1.0,size:Phaser.Math.FloatBetween(2,5),
           col:[0x504030,0x3a2e20,0x6a5a3a,0x2a2010][Math.floor(Math.random()*4)],
           isPebble:true,
         });
@@ -778,12 +693,11 @@ class GameScene extends Phaser.Scene{
   }
 
   spawnBrakePebbles(){
-    // Камни при торможении — только на прямой (isFirstStart ещё true = начало)
-    // Везде отключены до реализации правильной привязки к terrain
+    // Отключено — камни привязаны к GY, не к рельефу
   }
 
   spawnDust(){
-    // Общая пыль отключена — появляется не там где нужно на рельефе
+    // Отключено — пыль привязана к GY, не к рельефу
   }
 
   triggerCrash(){
@@ -824,8 +738,7 @@ class GameScene extends Phaser.Scene{
   updateUI(){
     drawSpeedo(this.vizKmh);
     elDist.textContent=Math.round(this.bgScroll*.3)+' m';
-    // Показываем кнопку рестарта как только тронулись
-    if(this.bgScroll>30) btnRestart.style.display='block';
+    if(this.bgScroll>30&&btnRestart)btnRestart.style.display='block';
     for(let i=0;i<20;i++){const c=document.getElementById('cap'+i);if(c)c.className='cap'+(i<this.capsules?'':' dead');}
     btnNitro.style.setProperty('--np',this.nitroPct.toFixed(1)+'%');
     if(this.nitroOn){btnNitro.classList.add('active');btnNitro.classList.remove('ready');}
@@ -849,7 +762,7 @@ class GameScene extends Phaser.Scene{
       const bgSpdC=this.bgScrollKmh*PX_PER_KMH;
       this.bgScroll+=bgSpdC*dt;
       this.bgLayers.forEach(l=>{l.g.x=-((this.bgScroll*l.factor)%this.TW);});
-      this.updateParticles(dt);this.drawParticles();this.drawGarage();this.drawTerrain();this.updateUI();return;
+      this.updateParticles(dt);this.drawParticles();this.drawGarage();this.drawGround();this.updateUI();return;
     }
 
     // ── Нитро ──
@@ -927,22 +840,20 @@ class GameScene extends Phaser.Scene{
     if(this.bgScrollKmh>100) tierMult=1.65;
     else if(this.bgScrollKmh>50) tierMult=1.35;
     const bgSpd=this.bgScrollKmh*PX_PER_KMH*scrollMult*tierMult;
-    this.bgScroll+=bgSpd*dt;
+    this.bgScroll=Math.max(0,this.bgScroll+bgSpd*dt);
     this.bgLayers.forEach(l=>{l.g.x=-((this.bgScroll*l.factor)%this.TW);});
 
     this.updateJump(dt);
     this.updateBounce(dt);
 
-    // ── Буст во время прыжка: держим газ = выше на 20% + дальше на 36% ──
-    this.jumpBoost = gasHeld && this.jumpPhase==='air';
+    // ── Буст во время прыжка: держим газ = летим дальше + красные огни ──
+    this.jumpBoost=gasHeld&&this.jumpPhase==='air';
     if(this.jumpBoost){
-      // Один раз даём вертикальный импульс +36% от слабого прыжка
       if(this.bikeVY<0&&!this.boostImpulseDone){
-        this.bikeVY -= 400*0.36; // +144 px/s вверх
+        this.bikeVY-=400*0.36; // +36% вертикальный импульс
         this.boostImpulseDone=true;
       }
-      // Фон летит быстрее — +36% дальности (горизонт)
-      this.bgScrollKmh=Math.min(KMH_MAX, this.bgScrollKmh+48*dt);
+      this.bgScrollKmh=Math.min(KMH_MAX,this.bgScrollKmh+48*dt);
     }
 
     // ── Вобблинг переднего колеса после приземления ──
@@ -982,13 +893,13 @@ class GameScene extends Phaser.Scene{
         const brakePeak = this.prevBgKmh > 50 ? 0.44 : 0.21;
         rotTgt = r * brakePeak;
       } else if(gas){
-        rotTgt=-(0.01+this.vizKmh/KMH_MAX*0.065) + this.slopeAng;
+        rotTgt=-(0.01+this.vizKmh/KMH_MAX*0.065);
       } else if(this.vizKmh>18){
         rotTgt=0.08*(this.vizKmh/KMH_MAX);
       } else if(this.vizKmh>5){
-        rotTgt=0.02 + this.slopeAng;
+        rotTgt=0.02;
       } else {
-        rotTgt=0.015 + this.slopeAng;
+        rotTgt=0.015;
       }
       if(this.stopSpringActive){
         this.stopSpringPhase+=8*dt;
@@ -1000,33 +911,30 @@ class GameScene extends Phaser.Scene{
         rotTgt+=Math.sin(this.landingWobblePhase)*this.landingWobbleAmt;
       }
     }
-    // ── Рельеф: обновить groundY и slope ──
-    const bikeWorldX = this.bgScroll + W*0.36;
-    const rawGroundY  = this.getTerrainY(bikeWorldX);
-    // Плавный lerp к новому groundY — убирает резкие скачки
-    this.groundY  = Phaser.Math.Linear(this.groundY, rawGroundY, 0.12);
-    this.slopeAng = this.getSlopeAngle(bikeWorldX);
-    // Ограничиваем угол наклона чтоб не колбасило
-    this.slopeAng = Phaser.Math.Clamp(this.slopeAng, -0.28, 0.28);
-
-    // Если на земле — байк сидит на рельефе
-    if(this.onGround && this.jumpPhase==='none'){
-      this.bikeBaseY = this.groundY - 26;
-      // Физика склона: вниз = быстрее, вверх = медленнее
-      const slopeEffect = -this.slopeAng * T_SLOPE_FORCE;
-      this.bgScrollKmh = Math.max(0, Math.min(KMH_MAX, this.bgScrollKmh + slopeEffect*dt));
-    }
-
     this.bikeC.rotation=Phaser.Math.Linear(this.bikeC.rotation,rotTgt,.14);
 
-    // ── Позиция байка (Y) — компенсация вращения + рельеф ──
-    const rot = this.bikeC.rotation;
-    const rotCompY = rot < 0
-      ? 54 * Math.sin(rot)
-      : -32 * Math.sin(rot);
+    // ── Terrain: groundY и slope ──
+    const bikeWorldX=this.bgScroll+W*0.36;
+    const rawGroundY=this.getTerrainY(bikeWorldX);
+    this.groundY=Phaser.Math.Linear(this.groundY,rawGroundY,0.12);
+    this.slopeAng=Phaser.Math.Clamp(this.getSlopeAngle(bikeWorldX),-0.35,0.35);
+
+    // Байк следует рельефу
+    if(this.onGround&&this.jumpPhase==='none'){
+      this.bikeBaseY=this.groundY-26;
+      // Физика склона: вниз ускоряет, вверх тормозит
+      if(this.bgScrollKmh>5){
+        const gravEffect=this.slopeAng*T_SLOPE_FORCE;
+        this.bgScrollKmh=Math.max(0,Math.min(KMH_MAX,this.bgScrollKmh+gravEffect*dt));
+      }
+    }
+
+    // ── Позиция байка Y ──
+    const rot=this.bikeC.rotation;
+    const rotCompY=rot<0?54*Math.sin(rot):-32*Math.sin(rot);
     const bob=this.onGround&&this.bgScrollKmh>8?Math.sin(time*.009)*(0.4+this.bgScrollKmh/KMH_MAX*1.2):0;
-    this.bikeC.y = this.bikeBaseY + this.bounceY + bob + this.shakeY + rotCompY;
-    this.bikeC.x = W * 0.36 + this.shakeX;
+    this.bikeC.y=this.bikeBaseY+this.bounceY+bob+this.shakeY+rotCompY;
+    this.bikeC.x=W*0.36+this.shakeX;
 
     this.drawGarage();
     this.drawTerrain();
