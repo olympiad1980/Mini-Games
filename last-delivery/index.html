@@ -90,14 +90,28 @@
   #btn-nitro.ready,#btn-nitro.active { box-shadow:0 2px 12px rgba(0,0,0,0.5); animation:none; border-color:rgba(100,120,100,0.55); background:rgba(20,22,20,0.75); }
   #btn-nitro.ready #nitro-icon,#btn-nitro.active #nitro-icon { filter:grayscale(0.6) brightness(0.8); opacity:0.55; animation:none; }
 
-  #version { position:absolute; bottom:3px; left:8px; font-size:7px; letter-spacing:2px; color:#111; pointer-events:none; z-index:50; }
-</style>
+  /* ── Тёмный фон под UI элементами — 36% снизу игровой зоны ── */
+  #ui-bg {
+    position:absolute;
+    bottom:0; left:0; right:0;
+    height:36%;
+    background:linear-gradient(
+      to bottom,
+      rgba(4,3,2,0) 0%,
+      rgba(4,3,2,0.55) 30%,
+      rgba(4,3,2,0.88) 70%,
+      rgba(4,3,2,0.97) 100%
+    );
+    pointer-events:none;
+    z-index:8;
+  }
 </head>
 <body>
 <div id="app">
   <div id="game-container">
     <div id="capsules-bar"></div>
-    <div id="version">LAST DELIVERY · v1.0</div>
+    <div id="ui-bg"></div>
+    <div id="version">LAST DELIVERY · v1.1</div>
   </div>
   <div id="controls">
     <div id="speedo-wrap">
@@ -189,7 +203,7 @@ function onGasUp(){
   if(tapMs<TAP_MAX_MS){
     const gs=window._gs;
     if(gs&&gs.bgScrollKmh>12&&gs.onGround&&gs.jumpPhase==='none'&&!gs.crashed&&!gs.burnoutActive&&!gs.prepActive){
-      gs.startJump();
+      gs.startJump(false); // тап = слабый прыжок
     }
   }
 }
@@ -447,11 +461,11 @@ class GameScene extends Phaser.Scene{
     g.lineStyle(5,C.exhaust);g.beginPath();g.moveTo(-16,fY+14);g.lineTo(wB+4,fY+17);g.lineTo(wB,aY+4);g.strokePath();
     if(this.nitroOn){const t=this.time.now,fl=Math.sin(t*.03);g.fillStyle(0x0044cc,(.3+fl*.18));g.fillEllipse(wB-18,aY+4,34+fl*8,15);g.fillStyle(0x44aaff,(.5+fl*.18));g.fillEllipse(wB-12,aY+4,22+fl*5,9);g.fillStyle(0xaaddff,(.65+fl*.2));g.fillEllipse(wB-6,aY+4,12+fl*3,6);g.fillStyle(0xffffff,(.75+fl*.2));g.fillEllipse(wB-2,aY+4,6+fl*2,4);}
     else if(this.jumpBoost){
-      // Два красных огонька при буст-прыжке
+      // Два красных огонька — на 75% больше
       const t=this.time.now,fl=Math.sin(t*.05);
-      g.fillStyle(0xdd1100,.65+fl*.25);g.fillEllipse(wB-12,aY+4,20+fl*6,8);
-      g.fillStyle(0xff4400,.80+fl*.15);g.fillEllipse(wB-6,aY+4,12+fl*4,5);
-      g.fillStyle(0xff8800,.55+fl*.2);g.fillEllipse(wB-2,aY+3,6+fl*2,3);
+      g.fillStyle(0xdd1100,.65+fl*.25);g.fillEllipse(wB-20,aY+4,35+fl*10,14);
+      g.fillStyle(0xff4400,.80+fl*.15);g.fillEllipse(wB-11,aY+4,21+fl*7,9);
+      g.fillStyle(0xff8800,.55+fl*.2);g.fillEllipse(wB-4,aY+3,11+fl*4,5);
     }
     else if(this.vizKmh>5){g.fillStyle(0xff6600,.18+Math.sin(this.time.now*.04)*.07);g.fillEllipse(wB-7,aY+4,11,5);}
     g.fillStyle(C.rustD);g.fillRect(-10,fY-50,4,18);g.fillStyle(C.exhaust);g.fillRect(-18,fY-54,18,5);
@@ -507,9 +521,10 @@ class GameScene extends Phaser.Scene{
     g.fillStyle(C.goggle);g.fillRoundedRect(bx-4,by-48,14,6,2);g.fillStyle(C.mask);g.fillRoundedRect(bx-5,by-42,16,11,3);
   }
 
-  startJump(){
+  startJump(strong=true){
     if(!this.onGround||this.crashed||this.jumpPhase!=='none')return;
-    this.bikeVY   = -560;
+    // Тап = 45% слабее; удержание (strong) = полный прыжок
+    this.bikeVY   = strong ? -560 : -308;
     this.onGround = false;
     this.jumpPhase= 'air';
     this.targetRot= -0.22;
