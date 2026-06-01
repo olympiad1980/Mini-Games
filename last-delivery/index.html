@@ -1,418 +1,988 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Bike Proto — каркас + физика</title>
+<title>Last Delivery — v1.0</title>
 <style>
-  *{margin:0;padding:0;box-sizing:border-box;}
-  html,body{width:100%;height:100%;background:#0a0806;overflow:hidden;touch-action:none;
-    font-family:"SFMono-Regular",ui-monospace,"Roboto Mono",monospace;color:#e8d5b0;}
-  #wrap{position:relative;width:100%;height:100dvh;height:100vh;}
-  canvas{display:block;width:100%;height:100%;}
-  #hud{position:absolute;top:0;left:0;right:0;padding:10px 12px;
-    display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;pointer-events:none;z-index:10;}
-  .chip{pointer-events:auto;font-size:11px;letter-spacing:1px;
-    background:rgba(15,10,5,0.72);border:1px solid rgba(251,146,60,0.28);
-    color:rgba(251,146,60,0.92);padding:7px 12px;border-radius:7px;
-    cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;
-    backdrop-filter:blur(6px);white-space:nowrap;transition:.12s;
-    min-width:150px;text-align:center;}
-  .chip:active{transform:scale(0.96);}
-  .chip.on{background:rgba(251,146,60,0.18);border-color:rgba(251,146,60,0.8);color:#ffd9a0;}
-  #readout{position:absolute;left:12px;bottom:14px;z-index:10;font-size:11px;line-height:1.55;
-    letter-spacing:.5px;color:rgba(232,213,176,0.6);background:rgba(15,10,5,0.55);
-    padding:8px 12px;border-radius:7px;border:1px solid rgba(255,255,255,0.06);
-    backdrop-filter:blur(4px);pointer-events:none;}
-  #readout b{color:#fb923c;}
-  #gas{position:absolute;right:18px;bottom:24px;z-index:10;width:118px;height:118px;border-radius:50%;
-    background:rgba(25,18,10,0.6);border:2px solid rgba(255,255,255,0.9);backdrop-filter:blur(8px);
-    display:flex;align-items:center;justify-content:center;font-size:13px;letter-spacing:3px;
-    color:rgba(255,255,255,0.85);cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;
-    box-shadow:0 4px 22px rgba(0,0,0,0.55);transition:.07s;}
-  #gas.pressed{background:rgba(251,146,60,0.25);border-color:rgba(255,210,120,1);
-    box-shadow:0 0 30px rgba(251,146,60,0.55);transform:scale(0.95);}
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:100%; height:100%; background:#050505; overflow:hidden; touch-action:none; font-family:monospace; }
+  #app { display:flex; flex-direction:column; width:100%; height:100dvh; height:100vh; }
+  #game-container { flex:1; min-height:0; overflow:hidden; position:relative; }
+  #game-container canvas { display:block; width:100%!important; height:100%!important; }
+  #capsules-bar { display:none; }
+
+  /* ── Панель управления — минимальная высота, кнопки выезжают вверх ── */
+  #controls {
+    flex-shrink:0;
+    height:90px;
+    background:#080808;
+    border-top:1px solid #2a1a08;
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    padding:0 18px;
+    padding-bottom:max(4px,env(safe-area-inset-bottom));
+    overflow:visible;       /* кнопки выходят за верхний край */
+    position:relative;
+    z-index:20;
+  }
+
+  #speedo-wrap {
+    display:flex; flex-direction:column; align-items:center; gap:1px;
+    margin-top:-38px;       /* спидометр поднят над панелью */
+  }
+  #dist-val { font-size:9px; color:#2a1a08; letter-spacing:2px; text-align:center; margin-top:2px; }
+  #btn-group { display:flex; align-items:flex-end; gap:12px; margin-top:0; }
+
+  /* ── GAS — крупный, выезжает вверх ── */
+  #btn-gas {
+    width:130px; height:130px; border-radius:50%;
+    background:rgba(25,18,10,0.65);
+    border:2px solid rgba(255,255,255,0.92);
+    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    cursor:pointer; -webkit-tap-highlight-color:transparent; user-select:none;
+    display:flex; align-items:center; justify-content:center;
+    position:relative; overflow:hidden;
+    transition:background .07s,box-shadow .07s,transform .05s;
+    flex-shrink:0;
+    margin-top:-58px;       /* сильно выезжает вверх, почти к дороге */
+    box-shadow:0 4px 24px rgba(0,0,0,0.6);
+  }
+  #btn-gas::before {
+    content:''; position:absolute; inset:0; border-radius:50%;
+    background:radial-gradient(circle at 38% 32%, rgba(255,255,255,0.14) 0%, transparent 60%);
+    pointer-events:none;
+  }
+  #btn-gas.pressed {
+    background:rgba(251,146,60,0.25);
+    box-shadow:0 0 32px rgba(251,146,60,0.6),inset 0 0 16px rgba(251,146,60,0.14);
+    transform:scale(0.95); border-color:rgba(255,210,120,1);
+  }
+  #btn-gas svg { width:68px; height:68px; }
+
+  /* ── NITRO — заморожен, но ВИДИМЫЙ ── */
+  #btn-nitro {
+    width:58px; height:58px; border-radius:50%;
+    background:rgba(20,22,20,0.75);
+    border:2px solid rgba(100,120,100,0.55);
+    backdrop-filter:blur(8px);
+    display:flex; align-items:center; justify-content:center;
+    position:relative; overflow:hidden;
+    flex-shrink:0;
+    pointer-events:none;
+    cursor:default;
+    margin-top:-18px;
+    box-shadow:0 2px 12px rgba(0,0,0,0.5), inset 0 0 10px rgba(40,50,40,0.3);
+  }
+  #btn-nitro::before { display:none; }
+  #btn-nitro::after {
+    content:''; position:absolute; inset:3px; border-radius:50%;
+    background:rgba(12,15,12,0.88); pointer-events:none;
+  }
+  #nitro-icon {
+    position:relative; z-index:2; font-size:22px; line-height:1;
+    opacity:0.55;           /* значительно ярче — видно что есть */
+    pointer-events:none;
+    filter:grayscale(0.6) brightness(0.8);
+  }
+  /* Все анимации нитро отключены пока не реализована логика */
+  #btn-nitro.ready,#btn-nitro.active { box-shadow:0 2px 12px rgba(0,0,0,0.5); animation:none; border-color:rgba(100,120,100,0.55); background:rgba(20,22,20,0.75); }
+  #btn-nitro.ready #nitro-icon,#btn-nitro.active #nitro-icon { filter:grayscale(0.6) brightness(0.8); opacity:0.55; animation:none; }
+
 </style>
 </head>
 <body>
-<div id="wrap">
-  <canvas id="cv"></canvas>
-  <div id="hud">
-    <div class="chip on" id="btn-terr">РЕЛЬЕФ: ПОЛОГИЙ</div>
-    <div class="chip" id="btn-regen">СЛУЧАЙНЫЙ ВЫБОР</div>
+<div id="app">
+  <div id="game-container">
+    <div id="capsules-bar"></div>
+    <div id="version">LAST DELIVERY · v1.2</div>
+    <div id="btn-restart" style="display:none;position:absolute;top:6px;left:50%;transform:translateX(-50%);z-index:200;background:rgba(15,8,3,0.55);border:1px solid rgba(251,146,60,0.25);color:rgba(251,146,60,0.4);font-family:monospace;font-size:13px;letter-spacing:3px;padding:7px 22px;border-radius:20px;cursor:pointer;-webkit-tap-highlight-color:transparent;backdrop-filter:blur(4px);white-space:nowrap;">START OVER</div>
   </div>
-  <div id="readout"></div>
-  <div id="gas">GAS</div>
+  <div id="controls">
+    <div id="speedo-wrap">
+      <canvas id="speedo" width="108" height="108"></canvas>
+      <div id="dist-val">0 m</div>
+    </div>
+    <div id="btn-group">
+      <button id="btn-gas">
+        <svg viewBox="0 0 60 60" fill="none">
+          <rect x="6" y="25" width="48" height="10" rx="5" fill="rgba(255,255,255,0.1)" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
+          <rect x="8" y="26.5" width="44" height="3" rx="1.5" fill="rgba(255,255,255,0.18)"/>
+          <rect x="38" y="20" width="16" height="19" rx="4" fill="rgba(255,255,255,0.14)" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+          <line x1="42" y1="21" x2="42" y2="38" stroke="rgba(255,255,255,0.3)" stroke-width="1.1"/>
+          <line x1="46" y1="21" x2="46" y2="38" stroke="rgba(255,255,255,0.3)" stroke-width="1.1"/>
+          <line x1="50" y1="21" x2="50" y2="38" stroke="rgba(255,255,255,0.3)" stroke-width="1.1"/>
+          <ellipse cx="54" cy="29.5" rx="2" ry="9" fill="rgba(255,255,255,0.22)" stroke="rgba(255,255,255,0.5)" stroke-width="1"/>
+          <path d="M18 18 Q13 29.5 18 41" stroke="rgba(255,255,255,0.38)" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+          <path d="M15 37 L18 41 L23 38" stroke="rgba(255,255,255,0.38)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+      </button>
+      <button id="btn-nitro"><span id="nitro-icon">⚡</span></button>
+    </div>
+  </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
 <script>
-const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
-let W,H,GY;
-function resize(){
-  const dpr=Math.min(window.devicePixelRatio||1,2);
-  W=window.innerWidth;H=window.innerHeight;
-  cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);
-  GY=H*0.55;rebuild();
+const gc=document.getElementById('game-container');
+const W=window.innerWidth;
+let H, GY, BR;
+
+const KMH_RISE     = 8;
+const KMH_FALL     = 55;
+const BG_KMH_RISE  = 48;
+const KMH_MAX      = 110;
+const PX_PER_KMH   = 13.5;
+const WHEEL_DIV    = 12;
+const BURNOUT_DUR  = 0.44;
+const BOUNCE_STR   = 140;
+const BOUNCE_GRAV  = 270;
+const TW_FACTOR    = 6;
+const TTW_FACTOR   = 18;
+const T_STEP       = 8;   // мельче шаг = плавнее край рельефа
+const T_SLOPE_FORCE= 14;
+
+// ── Спидометр ──
+const SC=document.getElementById('speedo'),sx=SC.getContext('2d');
+const SR=52,SCX=54,SCY=54,SA=Math.PI*.75,SW=Math.PI*1.5;
+function drawSpeedo(kmh){
+  sx.clearRect(0,0,108,108);
+  const g=sx.createRadialGradient(SCX,SCY,16,SCX,SCY,SR);
+  g.addColorStop(0,'#111');g.addColorStop(1,'#050505');
+  sx.beginPath();sx.arc(SCX,SCY,SR,0,Math.PI*2);sx.fillStyle=g;sx.fill();
+  sx.beginPath();sx.arc(SCX,SCY,SR-1,0,Math.PI*2);sx.strokeStyle='rgba(255,255,255,0.1)';sx.lineWidth=1.5;sx.stroke();
+  sx.beginPath();sx.arc(SCX,SCY,SR-9,SA,SA+SW);sx.strokeStyle='rgba(255,255,255,0.05)';sx.lineWidth=5;sx.stroke();
+  const fr=Math.min(kmh/250,1);
+  if(fr>0){sx.beginPath();sx.arc(SCX,SCY,SR-9,SA,SA+SW*fr);sx.strokeStyle=kmh>200?'#ff2d55':kmh>140?'#ffaa00':'#fb923c';sx.lineWidth=5;sx.stroke();}
+  for(let i=0;i<=25;i++){const r=i/25,a=SA+SW*r,mj=i%5===0;sx.beginPath();sx.moveTo(SCX+Math.cos(a)*(SR-16),SCY+Math.sin(a)*(SR-16));sx.lineTo(SCX+Math.cos(a)*(mj?SR-7:SR-11),SCY+Math.sin(a)*(mj?SR-7:SR-11));sx.strokeStyle=mj?'rgba(255,255,255,0.7)':'rgba(255,255,255,0.18)';sx.lineWidth=mj?1.4:0.7;sx.stroke();}
+  sx.font='bold 8px monospace';sx.textAlign='center';sx.textBaseline='middle';
+  [0,50,100,150,200,250].forEach(v=>{const a=SA+SW*(v/250);sx.fillStyle=v>=200?'#ff2d55':'rgba(255,255,255,0.5)';sx.fillText(v,SCX+Math.cos(a)*(SR-22),SCY+Math.sin(a)*(SR-22));});
+  const na=SA+SW*fr;sx.save();sx.translate(SCX,SCY);sx.rotate(na);
+  sx.shadowColor='rgba(251,146,60,0.7)';sx.shadowBlur=5;
+  sx.beginPath();sx.moveTo(-5,0);sx.lineTo(SR-14,0);sx.lineTo(SR-10,-1.2);sx.lineTo(SR-10,1.2);sx.closePath();sx.fillStyle='#fb923c';sx.fill();
+  sx.shadowBlur=0;sx.beginPath();sx.moveTo(-5,0);sx.lineTo(-12,0);sx.strokeStyle='rgba(255,255,255,0.25)';sx.lineWidth=1.8;sx.stroke();sx.restore();
+  sx.beginPath();sx.arc(SCX,SCY,4,0,Math.PI*2);sx.fillStyle='#222';sx.fill();
+  sx.beginPath();sx.arc(SCX,SCY,2.5,0,Math.PI*2);sx.fillStyle='#fb923c';sx.fill();
+  sx.font='bold 16px monospace';sx.textAlign='center';sx.textBaseline='middle';
+  sx.fillStyle=kmh>200?'#ff2d55':kmh>140?'#ffaa00':'#fb923c';sx.fillText(Math.round(kmh),SCX,SCY+20);
+  sx.font='6px monospace';sx.fillStyle='rgba(255,255,255,0.22)';sx.fillText('km/h',SCX,SCY+30);
+}
+drawSpeedo(0);
+
+// ── UI ──
+const elDist=document.getElementById('dist-val'),elCapsBar=document.getElementById('capsules-bar');
+const btnGas=document.getElementById('btn-gas'),btnNitro=document.getElementById('btn-nitro');
+function initCaps(n){elCapsBar.innerHTML='';for(let i=0;i<20;i++){const d=document.createElement('div');d.className='cap'+(i<n?'':' dead');d.id='cap'+i;elCapsBar.appendChild(d);}}
+initCaps(20);
+let gasHeld     = false;
+let nitroHeld   = false;
+let gasPressTime= 0;
+const TAP_MAX_MS= 175; // < этого = тап → прыжок при движении
+
+function onGasDown(){
+  gasPressTime=Date.now();
+  gasHeld=true; btnGas.classList.add('pressed');
+}
+function onGasUp(){
+  const tapMs=Date.now()-gasPressTime;
+  gasHeld=false; btnGas.classList.remove('pressed');
+  // Быстрый тап ПРИ ДВИЖЕНИИ = прыжок
+  if(tapMs<TAP_MAX_MS){
+    const gs=window._gs;
+    if(gs&&gs.bgScrollKmh>12&&gs.onGround&&gs.jumpPhase==='none'&&!gs.crashed&&!gs.burnoutActive&&!gs.prepActive){
+      gs.startJump(false); // тап = слабый прыжок
+    }
+  }
+}
+function bindBtn(el,d,u){
+  ['touchstart','mousedown'].forEach(e=>el.addEventListener(e,ev=>{ev.preventDefault&&ev.preventDefault();d();},{passive:false}));
+  ['touchend','touchcancel','mouseup','mouseleave'].forEach(e=>el.addEventListener(e,ev=>{ev.preventDefault&&ev.preventDefault();u();},{passive:false}));
+}
+bindBtn(btnGas,onGasDown,onGasUp);
+bindBtn(btnNitro,()=>nitroHeld=true,()=>nitroHeld=false);
+
+// ── Кнопка рестарта ──
+const btnRestart=document.getElementById('btn-restart');
+function doRestart(){
+  const gs=window._gs;if(!gs)return;
+  gasHeld=false;btnGas.classList.remove('pressed');
+  gs.bgScroll=0;gs.bgScrollKmh=0;gs.vizKmh=0;
+  gs.bikeBaseY=BR;gs.groundY=GY;gs.slopeAng=0;
+  gs.bikeVY=0;gs.onGround=true;gs.jumpPhase='none';
+  gs.bouncing=false;gs.bounceY=0;gs.bounceVY=0;
+  gs.squashAmt=0;gs.squashTimer=0;gs.bounceCount=0;
+  gs.burnoutActive=false;gs.prepActive=false;gs.lurchActive=false;
+  gs.brakeActive=false;gs.stopSpringActive=false;
+  gs.shakeAmt=0;gs.shakeX=0;gs.shakeY=0;
+  gs.wAngle=0;gs.wheelRPS=0;gs.targetRot=0;
+  gs.bikeC.rotation=0;gs.crashed=false;
+  gs.nitroOn=false;gs.nitroPct=0;gs.gasOffTime=0;gs.isFirstStart=true;
+  gs.dustP=[];gs.crashP=[];
+  gs.bgLayers.forEach(l=>{l.g.x=0;});
+  btnRestart.style.display='none';
+}
+if(btnRestart){
+  btnRestart.addEventListener('touchstart',e=>{e.preventDefault();doRestart();},{passive:false});
+  btnRestart.addEventListener('mousedown',doRestart);
 }
 
-// ════════ РЕЛЬЕФ ════════
-const STEP=5;
-let TERRAIN=[],TW=0,seed=12345,TERR_MODE='LONG';
-function rnd(){seed=(seed*9301+49297)%233280;return seed/233280;}
-function rr(a,b){return a+(b-a)*rnd();}
-const ss=t=>t*t*(3-2*t), easeOut=t=>1-Math.pow(1-t,2.2), easeIn=t=>Math.pow(t,2.2);
-function makeFeats(mode){
-  const U=H;let cy=0;const f=[];
-  const push=(type,w,dy,ex)=>{f.push({type,w,sy:cy,dy,...(ex||{})});cy+=dy;};
-  push('FLAT',W*1.3,0);
-  if(mode==='LONG'){
-    const b=[
-      ()=>{push('HILL',rr(1.5,2.2)*W,-rr(0.20,0.30)*U);push('PEAK_DN',rr(0.5,0.7)*W,rr(0.20,0.30)*U);},
-      ()=>{push('VALLEY',rr(1.2,1.7)*W,0,{depth:rr(0.22,0.34)*U});},
-      ()=>{push('PEAK_UP',rr(0.55,0.75)*W,-rr(0.22,0.32)*U);push('PEAK_DN',rr(0.55,0.75)*W,rr(0.22,0.32)*U);},
-      ()=>{push('HILL',rr(1.6,2.4)*W,-rr(0.16,0.24)*U);push('HILL',rr(1.6,2.4)*W,rr(0.16,0.24)*U);},
-      ()=>{push('ROLL',rr(1.0,1.5)*W,rr(-0.08,0.08)*U);},
-    ];
-    for(let i=0;i<7;i++){b[rnd()*b.length|0]();push('FLAT',rr(0.2,0.5)*W,0);}
-  } else {
-    const b=[
-      ()=>{push('PEAK_UP',rr(0.55,0.75)*W,-rr(0.20,0.30)*U);push('PEAK_DN',rr(0.55,0.75)*W,rr(0.20,0.30)*U);},
-      ()=>{push('VALLEY',rr(0.70,0.95)*W,0,{depth:rr(0.24,0.36)*U});},
-      ()=>{push('HILL',rr(0.6,0.9)*W,-rr(0.16,0.26)*U);push('HILL',rr(0.5,0.8)*W,rr(0.16,0.26)*U);},
-      ()=>{push('PEAK_DN',rr(0.6,0.8)*W,rr(0.20,0.30)*U);push('PEAK_UP',rr(0.6,0.8)*W,-rr(0.20,0.30)*U);},
-      ()=>{push('STEP',rr(0.35,0.5)*W,-rr(0.12,0.20)*U);},
-    ];
-    for(let i=0;i<11;i++){b[rnd()*b.length|0]();if(rnd()>0.6)push('FLAT',rr(0.1,0.22)*W,0);}
-  }
-  push('HILL',W*1.5,-cy);push('FLAT',W*0.9,0);
-  let x=0;f.forEach(s=>{s.sx=x;x+=s.w;});TW=x;return f;
+// ── Цвета ──
+const C={rustD:0x5c2d0a,rust:0x8b4513,rustL:0xb5651d,wheel:0x1a1a1a,rim:0x4a4035,spoke:0x5a5040,skin:0xe8d5b0,shirt:0xd4c49a,pants:0x3d4a2f,boots:0x2a1f10,helmet:0x3a4a30,mask:0x5a6a4a,goggle:0x8b7355,exhaust:0x666055};
+
+// ── Гараж ──
+function drawGarageAt(g, x) {
+  const gH=GY*.88, gW=185, doorW=90, lw=42, rw=gW-lw-doorW;
+  const lintelH=gH*.13;
+  // Левая стена
+  g.fillStyle(0x0c0a07,1);g.fillRect(x,GY-gH,lw,gH);
+  // Правая стена
+  g.fillStyle(0x0e0c09,1);g.fillRect(x+lw+doorW,GY-gH,rw,gH);
+  // Верхняя балка
+  g.fillStyle(0x0a0907,1);g.fillRect(x,GY-gH,gW,lintelH);
+  // Горизонтальные полосы (кирпич)
+  g.fillStyle(0x171410,.5);
+  for(let wy=GY-gH+lintelH+10;wy<GY;wy+=15){g.fillRect(x+4,wy,lw-8,1.2);if(rw>6)g.fillRect(x+lw+doorW+3,wy,rw-6,1.2);}
+  // Рамка двери
+  g.lineStyle(2,0x1e1a14,.65);g.strokeRect(x+lw,GY-gH+lintelH,doorW,gH-lintelH);
+  // Тёмный интерьер
+  g.fillStyle(0x060504,.8);g.fillRect(x+lw+2,GY-gH+lintelH+2,doorW-4,gH-lintelH-2);
+  // Крыша слева (продолжение)
+  g.fillStyle(0x0c0a07,1);g.fillRect(x-30,GY-gH,30,gH*.1);
+  g.fillStyle(0x0a0907,1);g.fillRect(x-30,GY-gH,30,gH*.06);
+  // Щели/трещины на стене
+  g.lineStyle(1,0x1a1510,.5);
+  g.beginPath();g.moveTo(x+12,GY-gH+lintelH+20);g.lineTo(x+18,GY-gH*0.4);g.strokePath();
+  g.beginPath();g.moveTo(x+lw+doorW+8,GY-gH+lintelH+15);g.lineTo(x+lw+doorW+5,GY-gH*0.3);g.strokePath();
 }
-function buildProfile(){
-  const feats=makeFeats(TERR_MODE);TERRAIN=[];let fi=0;
-  for(let px=0;px<=TW;px+=STEP){
-    while(fi<feats.length-1&&px>=feats[fi].sx+feats[fi].w)fi++;
-    const f=feats[fi],t=Math.min(1,(px-f.sx)/f.w);let y;
-    switch(f.type){
-      case'FLAT':y=f.sy;break;
-      case'HILL':case'ROLL':case'STEP':y=f.sy+f.dy*ss(t);break;
-      case'PEAK_UP':y=f.sy+f.dy*easeOut(t);break;
-      case'PEAK_DN':y=f.sy+f.dy*easeIn(t);break;
-      case'VALLEY':{
-        // корзина с широким плоским дном (шире колёсной базы) — байк не встаёт поперёк
-        const edge=0.30;                       // доля на спуск/подъём по краям
-        let k;
-        if(t<edge)            k=ss(t/edge);                       // вход вниз
-        else if(t>1-edge)     k=ss((1-t)/edge);                  // выход вверх
-        else                  k=1;                                // плоское дно
-        y=f.sy+k*f.depth;
-        break;
+
+// ── Булыжники ──
+function genCobbles(dense){
+  const d=[];let x=0,s=999;
+  while(x<window._TTW){const w=12+((s*9301+49297)%233280)/233280*22,h=6+(((s+1)*9301+49297)%233280)/233280*11,y=GY+8+(((s+2)*9301+49297)%233280)/233280*28,sh=Math.floor((((s+3)*9301+49297)%233280)/233280*5);d.push({x,y,w,h,sh});x+=1+(((s+4)*9301+49297)%233280)/233280*(dense?5:13);s+=5;}
+  return d;
+}
+
+// ── Сегментный рельеф ──
+function buildTerrain(ttw,baseY){
+  const ss =t=>t*t*(3-2*t);           // smoothstep — плавный
+  const sp =t=>t<0.5?2*t*t:1-2*(1-t)*(1-t); // sharp — заострённый
+  const lin=t=>t;                      // линейный — обрыв
+  let cx=0,cy=baseY;const segs=[];
+  function seg(type,w,dy){segs.push({type,sx:cx,ex:cx+w,sy:cy,ey:cy+dy});cx+=w;cy+=dy;}
+
+  // === МАРШРУТ — плавные затяжные холмы, резкие обрывы ===
+  seg('FLAT',   W*7.0,    0);   // прямая от гаража
+  seg('SMOOTH', W*1.8,  -90);   // плавный затяжной подъём
+  seg('FLAT',   W*0.4,    0);   // плато
+  seg('SHARP',  W*0.5,  +105);  // резкий обрыв вниз
+  seg('FLAT',   W*0.3,    0);   // дно
+  seg('SMOOTH', W*2.0,  -110);  // долгий подъём — самый высокий
+  seg('FLAT',   W*0.35,   0);   // плато на высоте
+  seg('SMOOTH', W*1.4,  +100);  // плавный спуск
+  seg('CLIFF',  W*0.3,  +80);   // обрыв — крутой
+  seg('FLAT',   W*0.5,    0);   // долина
+  seg('SMOOTH', W*1.6,  -95);   // подъём
+  seg('SHARP',  W*0.4,  +120);  // резкий спуск вниз
+  seg('FLAT',   W*0.6,    0);   // широкая долина
+  seg('SMOOTH', W*1.2,  -80);   // холм
+  seg('SMOOTH', W*1.0,  +85);   // спуск
+  // Возврат к базе
+  const retDY=baseY-cy;
+  seg('SMOOTH', W*1.0, retDY);
+  seg('FLAT',   W*0.5,    0);
+
+  const pts=[];
+  segs.forEach(sg=>{
+    const len=sg.ex-sg.sx;
+    for(let x=sg.sx;x<sg.ex;x+=T_STEP){
+      const t=Math.min(1,(x-sg.sx)/len);
+      let ease;
+      switch(sg.type){
+        case'FLAT':   ease=0; break;
+        case'SMOOTH': ease=ss(t); break;
+        case'SHARP':  ease=sp(t); break;
+        case'CLIFF':  ease=t*t*t; break; // кубический — резкий в конце
+        default:      ease=ss(t);
       }
-      default:y=f.sy;
+      pts.push({x, y:sg.sy+(sg.ey-sg.sy)*ease});
     }
-    TERRAIN.push(y);
-  }
-}
-function rebuild(){seed=(Math.random()*99999)|0;buildProfile();scroll=0;speed=0;camY=null;bike.init=false;bike.airborne=false;bike.vy=0;parts.length=0;emit=0;wheelie=0;slip=0;}
-function terrY(worldX){
-  const tw=TW;let x=((worldX%tw)+tw)%tw;
-  const i=Math.floor(x/STEP),t=(x-i*STEP)/STEP,n=TERRAIN.length;
-  return GY+TERRAIN[i%n]+(TERRAIN[(i+1)%n]-TERRAIN[i%n])*t;
+  });
+  while(pts.length===0||pts[pts.length-1].x<ttw)pts.push({x:pts.length*T_STEP,y:baseY});
+  return pts;
 }
 
-// ════════ ФИЗИКА (жёсткая база) ════════
-let scroll=0,speed=0,gasHeld=false,wheelAngF=0,wheelAngR=0,slip=0,wheelie=0;
-const CX=()=>W*0.38;
-const HALF=48, WR=20;
-const ENG=900, GRAV_ROLL=900, DRAG=1.5, SPD_MIN=-300, SPD_MAX=760, JUMP_MIN_SPD=70;
-const JUMP_V=560, GRAV=1500, AIR_ANG=-0.16;   // прыжок: импульс вверх, гравитация, наклон в воздухе
-const SLIP_THRESH=0.25, SLIP_GAIN=34, LAUNCH_SPD=220;   // буксование: порог склона, сила, скорость «схватывания»
-const WHEELIE_MAX=0.22;                                  // подскок носа на старте (рад, ~13°)
-// состояние байка (земля/воздух)
-const bike={airborne:false, axleY:0, ang:0, vy:0, init:false};
-// частицы из-под колеса (камни + пыль)
-const parts=[]; let emit=0;
-const rand=(a,b)=>a+Math.random()*(b-a);
-function rigidSolve(cx,seedA){
-  let a=seedA||0;
-  for(let it=0;it<4;it++){
-    const rx=cx-HALF*Math.cos(a),fx=cx+HALF*Math.cos(a);
-    a=Math.atan2(terrY(scroll+fx)-terrY(scroll+rx),fx-rx);
+// ── Функция фона (из v0.9) ──
+function buildBG(g, GY, W) {
+  function ruin(x,w,h,dark){
+    const y=GY-h,c=dark||0x0d0b09;
+    g.fillStyle(c,1);g.fillRect(x,y,w,h);
+    g.fillStyle(0x0f0d14,1);
+    const ch=Math.max(2,Math.floor(w/18));
+    for(let i=0;i<ch;i++){const bx=x+i*(w/ch),nw=w/ch,bh=4+Math.floor(Math.random()*20);if(Math.random()>.4)g.fillTriangle(bx,y,bx+nw,y,bx+nw*.5,y-bh);}
+    g.fillStyle(c,1);
+    if(w>30){g.fillStyle(0xff6800,.055);for(let wy=y+10;wy<GY-10;wy+=18)for(let wx=x+5;wx<x+w-5;wx+=14)if(Math.random()>.6)g.fillRect(wx,wy,6,9);g.fillStyle(c,1);}
   }
-  const rx=cx-HALF*Math.cos(a),fx=cx+HALF*Math.cos(a);
-  const gR=terrY(scroll+rx),gF=terrY(scroll+fx);
-  const axleY=Math.min(gR-WR+HALF*Math.sin(a),gF-WR-HALF*Math.sin(a));
-  return {a,axleY,gR,gF,rx,fx};
+  function hill(x,w,h){const by=GY+2;g.fillStyle(0x0b0908,.9);g.fillTriangle(x,by,x+w,by,x+w*.5,by-h);g.fillStyle(0x181008,.3);g.fillTriangle(x+w*.5,by-h,x+w*.62,by,x+w*.88,by);}
+  function factory(x,w,h){g.fillStyle(0x0f0c0a,1);g.fillRect(x,GY-h,w,h);g.fillStyle(0x0c0a08,1);g.fillRect(x+w*.65,GY-h-28,9,30);g.fillStyle(0x0e0b09,1);g.fillRect(x-22,GY-h*.6,20,h*.6);g.fillStyle(0x1a1612,.35);for(let wy=GY-h+8;wy<GY-6;wy+=14)g.fillRect(x+2,wy,w-4,2);}
+  function tower(x,h,lean){const t_=lean||0,mx=x+t_*h/2,by=GY;g.lineStyle(4,0x100e0c,.88);g.beginPath();g.moveTo(x-12,by);g.lineTo(mx-4,by-h);g.strokePath();g.beginPath();g.moveTo(x+12,by);g.lineTo(mx+4,by-h);g.strokePath();g.lineStyle(2,0x100e0c,.65);for(let f=.15;f<.9;f+=.22){const ly=by-h*f,lw=(1-f)*18;g.beginPath();g.moveTo(x-lw+t_*h*f/2,ly);g.lineTo(x+lw+t_*h*f/2,ly);g.strokePath();}g.lineStyle(3,0x100e0c,.78);g.beginPath();g.moveTo(mx,by-h);g.lineTo(mx+18,by-h-16);g.strokePath();}
+  function waterTower(x,h){const by=GY,lH=h*.55,tH=h*.45;g.lineStyle(4,0x100e0c,.82);g.beginPath();g.moveTo(x-22,by);g.lineTo(x-7,by-lH);g.strokePath();g.beginPath();g.moveTo(x,by);g.lineTo(x,by-lH);g.strokePath();g.beginPath();g.moveTo(x+22,by);g.lineTo(x+7,by-lH);g.strokePath();g.lineStyle(2,0x100e0c,.55);g.beginPath();g.moveTo(x-18,by-lH*.4);g.lineTo(x+18,by-lH*.4);g.strokePath();g.fillStyle(0x0f0d0b,1);g.fillEllipse(x,by-lH-tH*.5,48,tH);g.fillStyle(0x19160e,.28);g.fillEllipse(x,by-lH-tH*.38,38,tH*.28);}
+  function skyscraper(x,w,h){g.fillStyle(0x0e0c11,1);g.fillRect(x,GY-h,w,h);g.fillStyle(0x0f0d14,1);for(let i=0;i<3;i++){const px=x+5+i*(w/3),ph=12+Math.random()*28,pw=Math.min(w/4,14);g.fillRect(px,GY-h+8+i*10,pw,ph);}g.lineStyle(2,0x0e0c0f,.75);g.beginPath();g.moveTo(x+w*.5,GY-h);g.lineTo(x+w*.5,GY-h-32);g.strokePath();}
+  function bridge(x){const bh=GY*.13;g.fillStyle(0x100e0c,1);g.fillRect(x,GY-bh,26,bh);g.lineStyle(8,0x100e0c,.82);g.beginPath();g.moveTo(x+26,GY-bh*.88);g.lineTo(x+108,GY-bh*.32);g.strokePath();g.fillStyle(0x100e0c,1);g.fillRect(x+138,GY-bh*.62,22,bh*.62);g.lineStyle(2,0x100e0c,.58);g.beginPath();g.moveTo(x+10,GY-bh);g.lineTo(x+58,GY-bh*.22);g.strokePath();}
+  // Зоны
+  ruin(10,50,GY*.52,0x0d0b09);ruin(78,32,GY*.36,0x100e0c);ruin(128,60,GY*.64,0x0c0a08);ruin(245,42,GY*.44,0x0f0d0b);ruin(308,28,GY*.30,0x110f0d);ruin(355,65,GY*.58,0x0d0b09);ruin(W-80,40,GY*.40,0x100e0c);
+  hill(W+10,180,GY*.52);hill(W+210,130,GY*.42);hill(W+360,220,GY*.60);ruin(W+150,18,GY*.14,0x0e0c0a);ruin(W+500,24,GY*.18,0x0e0c0a);
+  factory(2*W+15,85,GY*.50);factory(2*W+140,65,GY*.42);ruin(2*W+240,30,GY*.28,0x0f0d0b);factory(2*W+310,90,GY*.56);g.fillStyle(0x0c0a08,1);g.fillRect(2*W+430,GY-GY*.35,14,GY*.35);g.fillRect(2*W+462,GY-GY*.25,11,GY*.25);g.fillStyle(0x0e0c0a,1);g.fillEllipse(2*W+492,GY-GY*.18,36,20);
+  tower(3*W+30,GY*.55,0);tower(3*W+120,GY*.65,.12);waterTower(3*W+220,GY*.60);tower(3*W+320,GY*.48,-.08);tower(3*W+420,GY*.72,0);waterTower(3*W+520,GY*.50);ruin(3*W+W-60,20,GY*.18,0x0e0c0a);
+  skyscraper(4*W+10,45,GY*.68);ruin(4*W+70,25,GY*.32,0x100e0c);skyscraper(4*W+120,55,GY*.75);skyscraper(4*W+200,38,GY*.60);ruin(4*W+265,30,GY*.38,0x0f0d0b);skyscraper(4*W+320,60,GY*.70);ruin(4*W+410,22,GY*.24,0x100e0c);skyscraper(4*W+460,48,GY*.65);
+  bridge(5*W+10);ruin(5*W+200,55,GY*.58,0x0d0b09);waterTower(5*W+290,GY*.55);ruin(5*W+370,35,GY*.42,0x0f0d0b);bridge(5*W+450);ruin(5*W+620,48,GY*.50,0x0d0b09);ruin(5*W+W-50,30,GY*.30,0x100e0c);
 }
-function updatePhysics(dt){
-  const cx=CX();
-  const s=rigidSolve(cx,bike.ang);     // как байк стоял бы на земле сейчас
-  const groundAxleY=s.axleY, groundAng=s.a;
-  if(!bike.init){bike.axleY=groundAxleY;bike.ang=groundAng;bike.init=true;}
 
-  // ── продольная физика (только на земле) ──
-  if(!bike.airborne){
-    if(gasHeld) speed += ENG*dt;                       // двигатель
-    speed += GRAV_ROLL*Math.sin(groundAng)*dt;         // скатывание по склону (вниз +, вверх −)
-    speed -= speed*DRAG*dt;                            // сопротивление качению (плавно к 0)
-    speed = Math.max(SPD_MIN, Math.min(SPD_MAX, speed));
-    if(!gasHeld && Math.abs(speed)<6 && Math.abs(Math.sin(groundAng))<0.03) speed=0; // покой на ровном
-  }
-  // ── пробуксовка заднего колеса: старт с низкой скорости + крутой подъём ──
-  let slipRate=0, wTarget=0;
-  if(!bike.airborne && gasHeld && speed>-5){
-    const launch=Math.max(0,1-Math.abs(speed)/LAUNCH_SPD);                        // трогание с места / после остановки
-    const steep =Math.max(0,(-Math.sin(groundAng)-SLIP_THRESH)/(1-SLIP_THRESH));  // крутой/затяжной подъём
-    slipRate=SLIP_GAIN*Math.min(1.2, launch*0.9 + steep);
-    wTarget=WHEELIE_MAX*launch;                                                   // подскок носа на старте
-  }
-  slip+=(slipRate-slip)*Math.min(1,12*dt);   // сглаживание
-  wheelie+=(wTarget-wheelie)*Math.min(1,8*dt);
-  scroll += speed*dt;
-  wheelAngF += (speed/WR)*dt;                // переднее — катится по скорости
-  wheelAngR += (speed/WR + slip)*dt;         // заднее — + проскальзывание
+class GameScene extends Phaser.Scene{
+  constructor(){super('Game');}
 
-  // ── вертикаль (земля/воздух) ──
-  if(bike.airborne){
-    bike.vy+=GRAV*dt;
-    bike.axleY+=bike.vy*dt;
-    bike.ang+=(AIR_ANG-bike.ang)*Math.min(1,4*dt);     // лёгкий нос вверх в полёте
-    if(bike.vy>0 && bike.axleY>=groundAxleY){          // приземление
-      const impact=bike.vy;
-      bike.airborne=false;bike.axleY=groundAxleY;bike.vy=0;
-      landingPuff(s.rx,s.gR,Math.min(1,impact/600));   // пыль/камни от удара
+  create(){
+    window._gs=this;
+    const TW=window._TW;
+    this.TW=TW;
+
+    // ── Визуальная скорость (спидометр + фон) ──
+    this.vizKmh   = 0;     // км/ч на приборе (медленный)
+    this.bgScrollKmh = 0; // км/ч фона (быстрый)
+    this.bgScroll = 0;
+    this.wasGas   = false; // предыдущее состояние газа
+
+    // ── Прыжок ──
+    this.bikeBaseY = BR;
+    this.bikeVY    = 0;
+    this.onGround  = true;
+    this.jumpPhase = 'none';
+    this.jumpTimer = 0;
+    this.targetRot = 0;
+
+    // ── Отскок при приземлении ──
+    this.bounceY   = 0;
+    this.bounceVY  = 0;
+    this.bouncing  = false;
+
+    // ── Колёса ──
+    this.wAngle    = 0;
+    this.wheelRPS  = 0;   // рад/с
+
+    // ── Пробуксовка старта ──
+    this.burnoutActive = false;
+    this.burnoutTimer  = 0;
+    this.isFirstStart  = true;  // первый запуск — максимальный козлик
+    this.prepActive    = false;
+    this.prepTimer     = 0;
+    this.lurchActive   = false;
+    this.lurchTimer    = 0;
+    // ── Пружина остановки ──
+    this.stopSpringActive = false;
+    this.stopSpringPhase  = 0;
+    this.stopSpringAmt    = 0;
+    this.prevVizKmh       = 0;
+    // ── Торможение — задняя ось вверх ──
+    this.brakeActive      = false;
+    this.brakeTimer       = 0;
+    this.brakeLifted      = 0;  // насколько задняя часть поднялась
+    // ── Вобблинг при приземлении ──
+    this.landingWobble    = false;
+    this.landingWobbleAmt = 0;
+    this.landingWobblePhase = 0;
+    this.frontWheelYOff   = 0;  // смещение переднего колеса (вобблинг)
+    this.stopPebblesSpawned = false;
+
+    // ── Нитро / капсулы / краш ──
+    this.nitroPct  = 0;
+    this.nitroOn   = false;
+    this.nitroTimer= 0;
+    this.capsules  = 20;
+    this.crashed   = false;
+    this.crashTimer= 0;
+    this.shakeAmt  = 0;
+    this.shakeX    = 0;
+    this.shakeY    = 0;
+    this.dustP     = [];
+    this.crashP    = [];
+
+    this.dCA = genCobbles(true);
+    this.dCB = genCobbles(false);
+    this.TW  = window._TW;
+    this.terrain   = buildTerrain(window._TTW, GY);
+    this.terrainTW = window._TTW;
+    this.groundY   = GY;
+    this.slopeAng  = 0;
+    this.squashAmt = 0;
+    this.squashTimer=0;
+    this.bounceCount=0;
+
+    // ── Небо ──
+    this.createSky();
+
+    // Фон пустой — только градиент неба
+    this.gBG1=this.add.graphics().setDepth(1); // пустой
+    this.gBG2=this.add.graphics().setDepth(2); // пустой
+    this.bgLayers=[
+      {g:this.gBG1,factor:0.05},
+      {g:this.gBG2,factor:0.16},
+    ];
+
+    // ── Земля + гараж ──
+    this.gG      = this.add.graphics().setDepth(5);
+    this.gGarage = this.add.graphics().setDepth(6);
+
+    // ── Частицы ──
+    this.gPt = this.add.graphics().setDepth(9);
+
+    // ── Колёса: отдельный слой ВНЕ контейнера (мировые координаты) ──
+    this.gWheels = this.add.graphics().setDepth(10);
+
+    // ── Fade снизу (тонкий — меньше тёмной зоны под дорогой) ──
+    const fd=this.add.graphics().setDepth(14);
+    const fh=Math.round(H*.06);
+    for(let i=0;i<fh;i++){fd.fillStyle(0x000000,i/fh*.85);fd.fillRect(0,H-fh+i,W,1);}
+
+    // ── Байк (тело без колёс) ──
+    this.bikeC=this.add.container(W*.36,BR).setDepth(11);
+    this.bikeG=this.add.graphics();
+    this.bikeC.add(this.bikeG);
+
+    this.cursors=this.input.keyboard.createCursorKeys();
+    this.keyX=this.input.keyboard.addKey('X');
+    this.keyN=this.input.keyboard.addKey('N');
+    this.keySpace=this.input.keyboard.addKey('SPACE');
+  }
+
+  createSky(){
+    const g=this.add.graphics().setDepth(0);
+    // Верхние 50% — тёмно-сиреневое небо (заметно светлее)
+    for(let i=0;i<H*.5;i++){
+      const t=i/(H*.5);
+      g.fillStyle(Phaser.Display.Color.GetColor(
+        Math.round(Phaser.Math.Linear(0x38,0x62,t)),
+        Math.round(Phaser.Math.Linear(0x32,0x52,t)),
+        Math.round(Phaser.Math.Linear(0x50,0x70,t))
+      ));
+      g.fillRect(0,i,W,1);
     }
-  } else {
-    bike.axleY=groundAxleY;
-    bike.ang+=(groundAng-bike.ang)*Math.min(1,18*dt);  // быстрое следование рельефу
-  }
-
-  const a=bike.ang, axleY=bike.axleY;
-  // ── вилли: пивот вокруг заднего колеса, переднее приподнимается ──
-  const w=bike.airborne?0:wheelie;
-  const aEff=a-w;                                   // нос вверх
-  const rx=cx-HALF*Math.cos(a), ry=axleY-HALF*Math.sin(a);   // заднее колесо остаётся на месте
-  const axCx=rx+HALF*Math.cos(aEff), axCy=ry+HALF*Math.sin(aEff);
-  return {cx:axCx,a:aEff,axleY:axCy,cy:axCy-16,
-    rear:{x:rx,y:ry},
-    front:{x:rx+2*HALF*Math.cos(aEff),y:ry+2*HALF*Math.sin(aEff)},
-    gR:s.gR,gF:s.gF};
-}
-function jump(){ if(!bike.airborne && bike.init){ bike.airborne=true; bike.vy=-JUMP_V; } }
-
-// ════════ ОТРИСОВКА БАЙКА ════════
-function drawWheel(x,y,ang){
-  ctx.save();ctx.translate(x,y);
-  ctx.beginPath();ctx.arc(0,0,WR,0,7);ctx.lineWidth=8;ctx.strokeStyle='#181818';ctx.stroke();
-  ctx.save();ctx.rotate(ang);ctx.strokeStyle='#0c0c0c';ctx.lineWidth=3;ctx.lineCap='round';
-  for(let i=0;i<12;i++){const an=i/12*Math.PI*2;
-    ctx.beginPath();ctx.moveTo(Math.cos(an)*(WR+1),Math.sin(an)*(WR+1));
-    ctx.lineTo(Math.cos(an)*(WR+4),Math.sin(an)*(WR+4));ctx.stroke();}
-  ctx.lineCap='butt';ctx.restore();
-  ctx.beginPath();ctx.arc(0,0,WR*0.52,0,7);ctx.lineWidth=2.5;ctx.strokeStyle='#9c6234';ctx.stroke();
-  ctx.rotate(ang);ctx.strokeStyle='#6a655a';ctx.lineWidth=1.3;
-  for(let s=0;s<8;s++){const an=s/8*Math.PI*2;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(an)*(WR*0.5-1),Math.sin(an)*(WR*0.5-1));ctx.stroke();}
-  ctx.fillStyle='#2a2620';ctx.beginPath();ctx.arc(0,0,3.2,0,7);ctx.fill();
-  ctx.restore();
-}
-function spring(a,b,col){
-  const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy)||1,px=-dy/len,py=dx/len,coils=6,amp=3.2;
-  ctx.strokeStyle=col;ctx.lineWidth=2.4;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(a.x,a.y);
-  for(let i=0;i<=coils;i++){const t=i/coils,x=a.x+dx*t,y=a.y+dy*t,s=(i%2?1:-1)*amp;ctx.lineTo(x+px*s,y+py*s);}
-  ctx.lineTo(b.x,b.y);ctx.stroke();ctx.lineCap='butt';
-}
-function fork(t,b){
-  const dx=b.x-t.x,dy=b.y-t.y;ctx.lineCap='round';
-  ctx.strokeStyle='#4f2c14';ctx.lineWidth=7;
-  ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.x+dx*0.55,t.y+dy*0.55);ctx.stroke();
-  ctx.strokeStyle='#9c6234';ctx.lineWidth=4.5;
-  ctx.beginPath();ctx.moveTo(t.x+dx*0.45,t.y+dy*0.45);ctx.lineTo(b.x,b.y);ctx.stroke();
-  ctx.lineCap='butt';
-}
-// каркас рисуется в ЛОКАЛЬНОЙ системе байка: ось (cx,axleY), колёса в (±HALF,0)
-// ржавая палитра байка (один источник правды — легко менять при апгрейдах)
-const RUST={
-  steel:'#7a4622', steelLt:'#9c6234', steelDk:'#4f2c14',
-  frame:'#8a4a1e', engine:'#3a2c20', engineDk:'#241a12', engineHi:'#5a3a22',
-  tank:'#9a5a2c', tankHi:'#c07a40', seat:'#241a14', seatHi:'#3a281c',
-  pipe:'#8a5a32', pipeHi:'#a8743f', bar:'#2a1c12', spring:'#c98a3a'
-};
-function drawFrame(cx,axleY,a){
-  ctx.save();ctx.translate(cx,axleY);ctx.rotate(a);
-  const LIFT=16; ctx.translate(0,-LIFT);            // приподнять корпус над колёсами (клиренс)
-  const RAX={x:-HALF,y:LIFT}, FAX={x:HALF,y:LIFT};  // колёса остаются на оси
-  const pivot={x:-8,y:-4}, head={x:26,y:-38};   // шарнир маятника / голова рамы (верх вилки)
-
-  // ── задний горизонтальный глушитель (торчит назад) ──
-  ctx.fillStyle=RUST.pipeHi;ctx.beginPath();ctx.roundRect(-62,-22,30,9,4);ctx.fill();
-  ctx.fillStyle=RUST.steelDk;ctx.beginPath();ctx.roundRect(-34,-21,6,7,2);ctx.fill();
-  ctx.fillStyle=RUST.steelDk;ctx.beginPath();ctx.ellipse(-62,-17.5,2.5,4,0,0,7);ctx.fill();
-
-  // ── маятник (тонкий, почти горизонтальный) + цепь ──
-  ctx.lineCap='round';
-  ctx.strokeStyle=RUST.steelLt;ctx.lineWidth=6;
-  ctx.beginPath();ctx.moveTo(pivot.x,pivot.y);ctx.lineTo(RAX.x,RAX.y);ctx.stroke();
-  ctx.strokeStyle=RUST.engineDk;ctx.lineWidth=1.6;
-  ctx.beginPath();ctx.moveTo(pivot.x,pivot.y+5);ctx.lineTo(RAX.x,RAX.y+3);ctx.stroke();
-  ctx.lineCap='butt';
-
-  // ── задний амортизатор ──
-  spring({x:-12,y:-32},{x:-28,y:4},RUST.spring);
-
-  // ── выхлоп: изгиб из головы движка вниз и назад к глушителю ──
-  ctx.lineCap='round';ctx.strokeStyle=RUST.pipe;ctx.lineWidth=4;
-  ctx.beginPath();ctx.moveTo(12,-14);ctx.quadraticCurveTo(16,4,-6,3);
-  ctx.quadraticCurveTo(-28,2,-40,-14);ctx.stroke();ctx.lineCap='butt';
-
-  // ── РАМА: тонкий трелис (видно насквозь) ──
-  ctx.strokeStyle=RUST.frame;ctx.lineWidth=3.4;ctx.lineJoin='round';
-  ctx.beginPath();ctx.moveTo(head.x,head.y);ctx.lineTo(2,-33);ctx.stroke();        // хребет
-  ctx.beginPath();ctx.moveTo(head.x,head.y);ctx.lineTo(13,-4);ctx.stroke();        // передняя труба к движку
-  ctx.beginPath();ctx.moveTo(13,-4);ctx.lineTo(pivot.x,pivot.y);ctx.stroke();      // нижний рейл
-  ctx.beginPath();ctx.moveTo(2,-33);ctx.lineTo(-34,-30);ctx.stroke();             // подрама
-  ctx.beginPath();ctx.moveTo(-10,-31);ctx.lineTo(pivot.x,pivot.y);ctx.stroke();    // косынка к шарниру
-  ctx.beginPath();ctx.moveTo(2,-33);ctx.lineTo(8,-6);ctx.stroke();                // средняя стойка
-
-  // ── двигатель (одноцилиндровый thumper) ──
-  ctx.fillStyle=RUST.engine;ctx.beginPath();ctx.roundRect(-6,-16,24,18,3);ctx.fill();
-  ctx.fillStyle=RUST.engineDk;for(let i=0;i<5;i++)ctx.fillRect(0+i*4,-22,2.4,8); // рёбра головки
-  ctx.fillStyle=RUST.engineDk;ctx.beginPath();ctx.roundRect(2,-24,12,4,2);ctx.fill();
-  ctx.fillStyle=RUST.engineHi;ctx.beginPath();ctx.arc(8,-4,7.5,0,7);ctx.fill();   // картер сцепления
-  ctx.fillStyle=RUST.engineDk;ctx.beginPath();ctx.arc(8,-4,3,0,7);ctx.fill();
-
-  // ── округлый бак (ржавый металл, высоко за рулём) ──
-  ctx.fillStyle=RUST.tank;ctx.beginPath();
-  ctx.moveTo(2,-31);
-  ctx.quadraticCurveTo(2,-44,14,-45);
-  ctx.quadraticCurveTo(24,-45,23,-35);
-  ctx.quadraticCurveTo(22,-31,14,-31);
-  ctx.closePath();ctx.fill();
-  ctx.fillStyle=RUST.tankHi;ctx.beginPath();ctx.ellipse(12,-41,6,2.4,-0.2,0,7);ctx.fill(); // блик
-  ctx.fillStyle=RUST.steelDk;ctx.beginPath();ctx.arc(20,-34,1.6,0,7);ctx.fill();            // крышка
-
-  // ── длинное плоское седло (тонкое) ──
-  ctx.fillStyle=RUST.seat;ctx.beginPath();
-  ctx.moveTo(0,-33);ctx.lineTo(-32,-32);ctx.quadraticCurveTo(-38,-32,-38,-29);
-  ctx.lineTo(-2,-30);ctx.closePath();ctx.fill();
-  ctx.fillStyle=RUST.seatHi;ctx.fillRect(-30,-32,24,1.4);
-
-  // ── ВИЛКА (длинная, раскатанная) + тройник + руль ──
-  fork(head,FAX);
-  ctx.fillStyle=RUST.engine;ctx.save();ctx.translate(head.x,head.y);ctx.rotate(0.5);
-  ctx.fillRect(-6,-4,13,9);ctx.restore();                                          // тройник вдоль вилки
-  ctx.strokeStyle=RUST.bar;ctx.lineWidth=3.2;ctx.lineCap='round';
-  ctx.beginPath();ctx.moveTo(head.x,head.y-1);ctx.lineTo(head.x-10,head.y-12);ctx.stroke();   // руль
-  ctx.beginPath();ctx.moveTo(head.x-10,head.y-12);ctx.lineTo(head.x-17,head.y-11);ctx.stroke(); // грип
-  ctx.lineCap='butt';
-
-  ctx.restore();
-}
-function drawBike(p){
-  drawWheel(p.rear.x,p.rear.y,wheelAngR);
-  drawWheel(p.front.x,p.front.y,wheelAngF);
-  drawFrame(p.cx,p.axleY,p.a);
-}
-
-// ════════ ФОН + ЗЕМЛЯ ════════
-function drawSky(){
-  const g=ctx.createLinearGradient(0,0,0,H);
-  g.addColorStop(0,'#3a3250');g.addColorStop(0.45,'#6a4a52');
-  g.addColorStop(0.7,'#c66a32');g.addColorStop(1,'#e8a040');
-  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
-}
-function drawGround(){
-  const BOT=8000;
-  const pts=[];for(let sx=-STEP;sx<=W+STEP;sx+=STEP)pts.push({x:sx,y:terrY(scroll+sx)});
-  ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);pts.forEach(p=>ctx.lineTo(p.x,p.y));
-  ctx.lineTo(W,BOT);ctx.lineTo(0,BOT);ctx.closePath();ctx.fillStyle='#6e4a22';ctx.fill();
-  ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y+18);pts.forEach(p=>ctx.lineTo(p.x,p.y+18));
-  ctx.lineTo(W,BOT);ctx.lineTo(0,BOT);ctx.closePath();ctx.fillStyle='#3a2614';ctx.fill();
-  ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);pts.forEach(p=>ctx.lineTo(p.x,p.y));
-  ctx.lineWidth=4;ctx.strokeStyle='#8a5a2a';ctx.stroke();
-  ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);pts.forEach(p=>ctx.lineTo(p.x,p.y));
-  ctx.lineWidth=1.5;ctx.strokeStyle='rgba(255,150,40,0.5)';ctx.stroke();
-}
-
-function landingPuff(x,y,power){
-  const n=6+Math.floor(power*12);
-  for(let i=0;i<n;i++){
-    if(Math.random()<0.6) parts.push({k:'d',x:x+rand(-12,12),y:y-4,vx:rand(-70,70),vy:rand(-130,-30),life:0,max:rand(0.5,0.95),size:rand(6,13)});
-    else parts.push({k:'r',x:x+rand(-7,7),y:y-3,vx:rand(-180,180),vy:rand(-280,-90),life:0,max:rand(0.4,0.7),size:rand(2,4.2),col:Math.random()<0.5?'#4a3018':'#5a4226'});
-  }
-}
-// ════════ ЧАСТИЦЫ ИЗ-ПОД КОЛЕСА ════════
-function spawnSlip(p,dt){
-  if(slip<2)return;
-  emit+=slip*dt*3.4;                        // намного гуще
-  const cxr=p.rear.x, cyr=p.gR;             // контакт заднего колеса с землёй
-  while(emit>=1 && parts.length<700){ emit--;
-    if(Math.random()<0.6){ // камень — мощный выброс ВВЕРХ из-под колеса
-      parts.push({k:'r',x:cxr+rand(-5,3),y:cyr-9,vx:rand(-250,-30),vy:rand(-600,-320),life:0,max:rand(0.55,1.0),size:rand(2.2,4.8),col:Math.random()<0.5?'#4a3018':'#5a4226'});
-    } else { // пыль — плотное облако, поднимается
-      parts.push({k:'d',x:cxr+rand(-9,4),y:cyr-8,vx:rand(-100,-10),vy:rand(-280,-90),life:0,max:rand(0.6,1.1),size:rand(6,14)});
+    // Нижние 50% — яркое тёплое зарево
+    for(let i=0;i<H*.5;i++){
+      const t=i/(H*.5);
+      g.fillStyle(Phaser.Display.Color.GetColor(
+        Math.round(Phaser.Math.Linear(0x62,0xe8,t)),
+        Math.round(Phaser.Math.Linear(0x52,0x60,t)),
+        Math.round(Phaser.Math.Linear(0x70,0x10,t))
+      ));
+      g.fillRect(0,H*.5+i,W,1);
     }
+    // Нет горизонтальных полос — чистый градиент
   }
-}
-function updateDrawParts(dt){
-  for(let i=parts.length-1;i>=0;i--){const o=parts[i];
-    o.life+=dt; if(o.life>=o.max){parts.splice(i,1);continue;}
-    o.vy+=820*dt;                          // гравитация
-    o.x+=(o.vx-speed)*dt;                  // мир уезжает влево на скорость байка
-    o.y+=o.vy*dt;
-    if(o.k==='r' && o.vy>0 && o.y>terrY(scroll+o.x)){ parts.splice(i,1); continue; }
-    const t=o.life/o.max;
-    if(o.k==='r'){
-      ctx.fillStyle=o.col;ctx.globalAlpha=1-t*0.45;
-      const s=o.size*(1-t*0.18);
-      ctx.fillRect(o.x-s/2,o.y-s/2,s,s);
+
+  // ── Рельеф ──
+  getTerrainY(worldX){
+    const tw=this.terrainTW;
+    const x=((worldX%tw)+tw)%tw;
+    const idx=Math.floor(x/T_STEP);
+    const t=(x-idx*T_STEP)/T_STEP;
+    const len=this.terrain.length;
+    const y0=this.terrain[idx%len]?.y??GY;
+    const y1=this.terrain[(idx+1)%len]?.y??GY;
+    return y0+(y1-y0)*t;
+  }
+  getSlopeAngle(worldX){
+    const tw=this.terrainTW;
+    const x=((worldX%tw)+tw)%tw;
+    const idx=Math.floor(x/T_STEP);
+    const len=this.terrain.length;
+    const p0=this.terrain[idx%len];
+    const p1=this.terrain[(idx+1)%len];
+    if(!p0||!p1)return 0;
+    return Math.atan2(p1.y-p0.y,T_STEP);
+  }
+
+  drawTerrain(){
+    const g=this.gG;g.clear();
+    const scroll=this.bgScroll;
+    const pts=[];
+    for(let sx=-T_STEP;sx<=W+T_STEP;sx+=T_STEP)pts.push({x:sx,y:this.getTerrainY(scroll+sx)});
+    // Слой 1
+    const poly=pts.map(p=>new Phaser.Geom.Point(p.x,p.y));
+    poly.push(new Phaser.Geom.Point(pts[pts.length-1].x,H));poly.push(new Phaser.Geom.Point(pts[0].x,H));
+    g.fillStyle(0x1a1308,1);g.fillPoints(poly,true);
+    // Слой 2
+    const mid=pts.map(p=>new Phaser.Geom.Point(p.x,p.y+20));
+    mid.push(new Phaser.Geom.Point(pts[pts.length-1].x,H));mid.push(new Phaser.Geom.Point(pts[0].x,H));
+    g.fillStyle(0x140f06,1);g.fillPoints(mid,true);
+    // Слой 3 (тёмное дно)
+    g.fillStyle(0x0d0a04,1);g.fillRect(0,H-35,W,35);
+    // Корка + оранжевая линия
+    g.lineStyle(5,0x3a2a12,1);g.beginPath();g.moveTo(pts[0].x,pts[0].y);pts.slice(1).forEach(p=>g.lineTo(p.x,p.y));g.strokePath();
+    g.lineStyle(1.5,0xff8c00,0.35);g.beginPath();g.moveTo(pts[0].x,pts[0].y);pts.slice(1).forEach(p=>g.lineTo(p.x,p.y));g.strokePath();
+    // Булыжники
+    const TTW=this.terrainTW;
+    const sA=(scroll*.92)%TTW,sB=(scroll*.40)%TTW;
+    [0,TTW].forEach(rep=>{
+      this.dCB.forEach(s=>{const sx_=s.x+rep-sB;if(sx_>W+40||sx_+s.w<-20)return;const ty=this.getTerrainY(scroll+sx_);g.fillStyle(0x1c1610+s.sh*0x010100,.58);g.fillRoundedRect(sx_,ty-3,s.w*.65,s.h*.45,2);});
+      this.dCA.forEach(s=>{const sx_=s.x+rep-sA;if(sx_>W+50||sx_+s.w<-30)return;const ty=this.getTerrainY(scroll+sx_);g.fillStyle(0x22180e+s.sh*0x020200,.88);g.fillRoundedRect(sx_,ty-s.h+3,s.w,s.h,3);g.fillStyle(0x382c1a,.38);g.fillRect(sx_+2,ty-s.h+4,s.w-4,2);});
+    });
+  }
+
+  // ── Гараж ──
+  drawGarage(){
+    // Начальная позиция: дверь гаража совпадает с байком (W*0.22)
+    // Прокрутка гаража чуть медленнее ближнего плана — дольше виден
+    const gx = W*.36 - 90 - this.bgScroll * 0.28;
+    if(gx > -210){
+      this.gGarage.clear();
+      drawGarageAt(this.gGarage, gx);
     } else {
-      ctx.fillStyle='#9a7a4a';ctx.globalAlpha=0.40*(1-t);
-      ctx.beginPath();ctx.arc(o.x,o.y,o.size*(1+t*1.8),0,7);ctx.fill();
+      this.gGarage.clear();
     }
   }
-  ctx.globalAlpha=1;
+
+  // ── Байк ──
+  drawBike(){
+    const g=this.bikeG;g.clear();
+    const wR=22,wF=32,wB=-54,aY=0,fY=-wR-2;
+    g.lineStyle(6,C.rust);g.strokeRect(wB+10,fY-20,wF-wB-20,20);
+    g.lineStyle(5,C.rustL);g.beginPath();g.moveTo(wB+18,fY);g.lineTo(-4,fY-28);g.strokePath();
+    g.lineStyle(4,C.rustL);g.beginPath();g.moveTo(wB+18,fY);g.lineTo(wB+18,aY);g.strokePath();
+    g.lineStyle(4,C.rust);g.beginPath();g.moveTo(-4,fY-28);g.lineTo(wF,aY);g.strokePath();g.beginPath();g.moveTo(-4,fY-24);g.lineTo(wF,aY);g.strokePath();
+    g.fillStyle(C.rustL);g.fillRoundedRect(-26,fY-34,50,20,7);g.fillStyle(C.rust);g.fillRoundedRect(-26,fY-34,50,9,{tl:7,tr:7,bl:0,br:0});g.fillStyle(C.rustD,.5);g.fillEllipse(-8,fY-26,16,7);
+    g.fillStyle(C.rustD);g.fillRoundedRect(wB+12,fY-38,44,11,4);
+    g.fillStyle(C.exhaust);g.fillRect(-18,fY-2,28,18);g.fillStyle(C.rustD);g.fillRect(-14,fY+1,20,13);
+    g.lineStyle(5,C.exhaust);g.beginPath();g.moveTo(-16,fY+14);g.lineTo(wB+4,fY+17);g.lineTo(wB,aY+4);g.strokePath();
+    if(this.nitroOn){const t=this.time.now,fl=Math.sin(t*.03);g.fillStyle(0x0044cc,(.3+fl*.18));g.fillEllipse(wB-18,aY+4,34+fl*8,15);g.fillStyle(0x44aaff,(.5+fl*.18));g.fillEllipse(wB-12,aY+4,22+fl*5,9);g.fillStyle(0xaaddff,(.65+fl*.2));g.fillEllipse(wB-6,aY+4,12+fl*3,6);g.fillStyle(0xffffff,(.75+fl*.2));g.fillEllipse(wB-2,aY+4,6+fl*2,4);}
+    else if(this.jumpBoost){
+      // Два красных огонька — на 75% больше
+      const t=this.time.now,fl=Math.sin(t*.05);
+      g.fillStyle(0xdd1100,.65+fl*.25);g.fillEllipse(wB-20,aY+4,35+fl*10,14);
+      g.fillStyle(0xff4400,.80+fl*.15);g.fillEllipse(wB-11,aY+4,21+fl*7,9);
+      g.fillStyle(0xff8800,.55+fl*.2);g.fillEllipse(wB-4,aY+3,11+fl*4,5);
+    }
+    else if(this.vizKmh>5){g.fillStyle(0xff6600,.18+Math.sin(this.time.now*.04)*.07);g.fillEllipse(wB-7,aY+4,11,5);}
+    g.fillStyle(C.rustD);g.fillRect(-10,fY-50,4,18);g.fillStyle(C.exhaust);g.fillRect(-18,fY-54,18,5);
+    g.fillStyle(C.goggle);g.fillCircle(wF-1,fY-18,7);g.fillStyle(0xffcc44,.2);g.fillCircle(wF-1,fY-18,4);
+    // Колёса рисуются отдельно в drawWheels() — мировые координаты
+    this.drawRay(g,fY);
+  }
+
+  // ── Колёса в МИРОВЫХ координатах — не зависят от наклона байка ──
+  drawWheels(){
+    const g=this.gWheels; g.clear();
+    const wR=22, wB=-54, wF=32, aY=0;
+    const cx=this.bikeC.x, cy=this.bikeC.y;
+    const rot=this.bikeC.rotation;
+    const cosR=Math.cos(rot), sinR=Math.sin(rot);
+
+    [[wB,aY],[wF,aY]].forEach(([lx,ly])=>{
+      // Позиция центра колеса в мировых координатах
+      const wx=cx+lx*cosR-ly*sinR;
+      const wy=cy+lx*sinR+ly*cosR;
+
+      // Шина
+      g.lineStyle(10,C.wheel);
+      g.strokeCircle(wx,wy,wR);
+
+      // Спицы — угол ТОЛЬКО от wAngle, без наклона контейнера
+      g.lineStyle(1.5,C.spoke);
+      for(let s=0;s<8;s++){
+        const a=this.wAngle+(s/8)*Math.PI*2;
+        g.beginPath();
+        g.moveTo(wx,wy);
+        g.lineTo(wx+Math.cos(a)*(wR-3),wy+Math.sin(a)*(wR-3));
+        g.strokePath();
+      }
+
+      // Обод
+      g.lineStyle(3,C.rim);
+      g.strokeCircle(wx,wy,wR*.52);
+
+      // Ступица
+      g.fillStyle(C.exhaust);g.fillCircle(wx,wy,4);
+      g.fillStyle(C.rustD);g.fillCircle(wx,wy,2);
+    });
+  }
+
+  drawRay(g,fY){
+    const bx=-18,by=fY-36;
+    g.fillStyle(C.shirt);g.fillRect(bx-7,by-26,17,28);g.fillStyle(C.rustD,.28);g.fillEllipse(bx,by-18,5,3);
+    g.fillStyle(C.pants);g.fillRect(bx-5,by+2,13,14);g.fillRect(bx+5,by+10,9,16);
+    g.fillStyle(C.boots);g.fillRect(bx+3,by+24,14,7);
+    g.fillStyle(C.skin);g.fillRect(bx+5,by-20,22,4);g.fillRect(bx+24,by-24,4,9);g.fillRect(bx-1,by-34,7,9);
+    g.fillStyle(C.helmet);g.fillRoundedRect(bx-9,by-60,20,20,6);g.fillStyle(0xffffff,.07);g.fillRoundedRect(bx-6,by-58,9,7,3);
+    g.fillStyle(C.goggle);g.fillRoundedRect(bx-4,by-48,14,6,2);g.fillStyle(C.mask);g.fillRoundedRect(bx-5,by-42,16,11,3);
+  }
+
+  startJump(strong=true){
+    if(!this.onGround||this.crashed||this.jumpPhase!=='none')return;
+    // +30% к обоим: слабый -400, сильный -728
+    this.bikeVY   = strong ? -728 : -400;
+    this.onGround = false;
+    this.jumpPhase= 'air';
+    this.targetRot= -0.22;
+    this.boostImpulseDone=false;
+  }
+
+  updateJump(dt){
+    switch(this.jumpPhase){
+      case'air':
+        this.bikeBaseY+=this.bikeVY*dt;
+        this.bikeVY+=960*dt;
+        // 56° в воздухе — нос задран, заднее колесо вниз
+        const airTgt=this.bikeVY<0?-0.98:-0.62;
+        this.targetRot=Phaser.Math.Linear(this.targetRot,airTgt,.06);
+        if(this.bikeBaseY>=this.groundY-26){
+          this.bikeBaseY=this.groundY-26;this.bikeVY=0;this.onGround=true;
+          this.jumpPhase='landing';this.jumpTimer=0.28;
+          // Enduro: нос РЕЗКО вниз, быстрый пивот
+          this.targetRot=0.20;
+          this.shakeAmt=3;
+          this.landingWobble=true;this.landingWobbleAmt=0.08;this.landingWobblePhase=0;
+        }
+        break;
+      case'landing':
+        this.jumpTimer-=dt;
+        // Быстрое выравнивание — передняя ось легла
+        this.targetRot=Phaser.Math.Linear(this.targetRot,0,.22);
+        if(this.jumpTimer<=0){this.jumpPhase='none';this.targetRot=0;}
+        break;
+    }
+  }
+
+  // Без отскока — enduro стиль
+  _triggerBounce(strength){this.bouncing=false;this.bounceY=0;this.bounceVY=0;this.squashAmt=0;this.bounceCount=0;}
+  updateBounce(dt){}
+
+  spawnBurnoutSmoke(){
+    // Дым и камни — только при первом старте
+    if(!this.isFirstStart)return;
+    for(let i=0;i<4;i++){
+      this.dustP.push({
+        x:this.bikeC.x-52+Phaser.Math.Between(-5,5),
+        y:this.groundY,
+        vx:Phaser.Math.FloatBetween(-40,-6),
+        vy:Phaser.Math.FloatBetween(-18,-50),
+        life:0.45,size:Phaser.Math.FloatBetween(5,13),col:0xc0c0c0,
+      });
+    }
+    if(Math.random()>0.25){
+      for(let i=0;i<4;i++){
+        this.dustP.push({
+          x:this.bikeC.x-52+Phaser.Math.Between(-6,6),
+          y:this.groundY-3,
+          vx:Phaser.Math.FloatBetween(-140,-60),
+          vy:Phaser.Math.FloatBetween(-80,-180),
+          life:1.0,size:Phaser.Math.FloatBetween(2,5),
+          col:[0x504030,0x3a2e20,0x6a5a3a,0x2a2010][Math.floor(Math.random()*4)],
+          isPebble:true,
+        });
+      }
+    }
+  }
+
+  spawnBrakePebbles(){
+    // Отключено — камни привязаны к GY, не к рельефу
+  }
+
+  spawnDust(){
+    // Отключено — пыль привязана к GY, не к рельефу
+  }
+
+  triggerCrash(){
+    if(this.crashed)return;this.crashed=true;this.crashTimer=1.5;
+    const loss=Math.min(Math.ceil(this.vizKmh/15),8);this.capsules=Math.max(0,this.capsules-loss);
+    this.shakeAmt=16;this.nitroOn=false;
+    this.bikeBaseY=BR;this.bikeVY=0;this.onGround=true;this.jumpPhase='none';this.targetRot=0;this.bouncing=false;this.bounceY=0;
+    gasHeld=false;btnGas.classList.remove('pressed');
+    this.cameras.main.flash(160,244,63,94,false);
+    for(let i=0;i<22;i++){const a=Math.random()*Math.PI*2,f=Phaser.Math.FloatBetween(70,210);this.crashP.push({x:this.bikeC.x,y:GY-22,vx:Math.cos(a)*f,vy:Math.sin(a)*f-90,life:1,size:Phaser.Math.FloatBetween(2,7),col:[C.rust,0xff6b00,C.rustL,0x1a1a1a][Math.floor(Math.random()*4)]});}
+  }
+
+  activateNitro(){
+    if(this.nitroPct<100||this.nitroOn||this.crashed)return;
+    this.nitroOn=true;this.nitroTimer=3.5;this.nitroPct=0;
+    btnNitro.classList.remove('ready');btnNitro.classList.add('active');
+    this.cameras.main.flash(80,52,211,153,false);
+  }
+
+  updateParticles(dt){
+    this.dustP=this.dustP.filter(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=50*dt;p.life-=dt*1.3;return p.life>0;});
+    this.crashP=this.crashP.filter(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=180*dt;p.life-=dt;return p.life>0;});
+  }
+  drawParticles(){
+    const g=this.gPt;g.clear();
+    this.dustP.forEach(p=>{
+      if(p.isPebble){
+        g.fillStyle(p.col,p.life*.85);
+        g.fillRect(p.x-p.size/2,p.y-p.size/2,p.size,p.size);
+      } else {
+        g.fillStyle(p.col,p.life*.35);
+        g.fillCircle(p.x,p.y,p.size*p.life);
+      }
+    });
+    this.crashP.forEach(p=>{g.fillStyle(p.col,p.life);g.fillRect(p.x-p.size/2,p.y-p.size/2,p.size,p.size);});
+  }
+
+  updateUI(){
+    drawSpeedo(this.vizKmh);
+    elDist.textContent=Math.round(this.bgScroll*.3)+' m';
+    if(this.bgScroll>30&&btnRestart)btnRestart.style.display='block';
+    for(let i=0;i<20;i++){const c=document.getElementById('cap'+i);if(c)c.className='cap'+(i<this.capsules?'':' dead');}
+    btnNitro.style.setProperty('--np',this.nitroPct.toFixed(1)+'%');
+    if(this.nitroOn){btnNitro.classList.add('active');btnNitro.classList.remove('ready');}
+    else if(this.nitroPct>=100){btnNitro.classList.add('ready');btnNitro.classList.remove('active');}
+    else btnNitro.classList.remove('ready','active');
+  }
+
+  update(time,delta){
+    const dt=Math.min(delta/1000,.05);
+    if(Phaser.Input.Keyboard.JustDown(this.keyX))this.triggerCrash();
+    if(Phaser.Input.Keyboard.JustDown(this.keyN))this.activateNitro();
+    if(Phaser.Input.Keyboard.JustDown(this.keySpace))this.startJump();
+
+    const gas=gasHeld||this.cursors.right.isDown||this.cursors.up.isDown;
+
+    // ── Краш ──
+    if(this.crashed){
+      this.crashTimer-=dt;if(this.crashTimer<=0)this.crashed=false;
+      this.vizKmh=Math.max(0,this.vizKmh-KMH_FALL*2*dt);
+      this.bgScrollKmh=Math.max(0,this.bgScrollKmh-KMH_FALL*2*dt);
+      const bgSpdC=this.bgScrollKmh*PX_PER_KMH;
+      this.bgScroll+=bgSpdC*dt;
+      this.bgLayers.forEach(l=>{l.g.x=-((this.bgScroll*l.factor)%this.TW);});
+      this.updateParticles(dt);this.drawParticles();this.drawGarage();this.drawGround();this.updateUI();return;
+    }
+
+    // ── Нитро ──
+    if(this.nitroOn){this.nitroTimer-=dt;if(this.nitroTimer<=0){this.nitroOn=false;btnNitro.classList.remove('active');}}
+    if(nitroHeld&&this.nitroPct>=100)this.activateNitro();
+
+    // Трекаем время без газа для надёжного триггера козлика
+    if(!gas) this.gasOffTime=(this.gasOffTime||0)+dt;
+
+    // ── Скорость: стрелка (медленно) и фон (быстро) — независимо ──
+    this.prevVizKmh=this.vizKmh;
+    this.prevBgKmh=this.bgScrollKmh;
+    if(gas){
+      // Козлик при любом старте после паузы >0.3с ИЛИ почти стоп
+      if(!this.wasGas&&this.onGround&&!this.prepActive&&!this.burnoutActive){
+        if(this.bgScrollKmh<45||(this.gasOffTime||0)>0.35){
+          this.prepActive=true; this.prepTimer=0.14;
+        }
+      }
+      this.gasOffTime=0;
+      this.brakeActive=false;
+      this.vizKmh=Math.min(KMH_MAX,this.vizKmh+KMH_RISE*dt);
+      this.bgScrollKmh=Math.min(KMH_MAX,this.bgScrollKmh+BG_KMH_RISE*dt);
+    } else {
+      this.vizKmh=Math.max(0,this.vizKmh-KMH_FALL*dt);
+      this.bgScrollKmh=Math.max(0,this.bgScrollKmh-KMH_FALL*dt);
+      if(this.wasGas&&this.prevBgKmh>35&&!this.brakeActive&&this.onGround){
+        this.brakeActive=true; this.brakeTimer=0.50;
+        this.stopSpringActive=false;
+        this.spawnBrakePebbles();
+      }
+    }
+    this.wasGas=gas;
+
+    if(this.vizKmh>10&&!this.nitroOn)
+      this.nitroPct=Math.min(100,this.nitroPct+(this.bgScrollKmh/KMH_MAX)*12*dt);
+
+    // ── Фаза подготовки (намёк перед козликом) ──
+    if(this.prepActive){
+      this.prepTimer-=dt;
+      this.targetRot=-0.08; // нос слегка вверх
+      if(this.prepTimer<=0){
+        this.prepActive=false;
+        this.burnoutActive=true; this.burnoutTimer=BURNOUT_DUR;
+      }
+    }
+
+    // ── Пробуксовка ──
+    if(this.burnoutActive){
+      this.burnoutTimer-=dt;
+      this.wAngle+=50*dt;
+      this.spawnBurnoutSmoke();
+      if(this.burnoutTimer<=0){
+        this.burnoutActive=false;
+        this.isFirstStart=false;  // первый старт завершён
+        this.lurchActive=true; this.lurchTimer=0.30;
+      }
+    }
+
+    // ── Торможение — чистое вращение (нет вертикального прыжка) ──
+    if(this.brakeActive){
+      this.brakeTimer-=dt;
+      if(this.brakeTimer<=0){
+        this.brakeActive=false;
+        // Пружина в самом конце
+        if(!this.stopSpringActive){
+          this.stopSpringActive=true;this.stopSpringPhase=0;this.stopSpringAmt=0.06;
+        }
+      }
+    }
+
+    const scrollMult=this.burnoutActive?0.04:1.0;
+    // Ступенчатое ускорение фона: +15% после 50, ещё +15% после 100
+    let tierMult=1.0;
+    if(this.bgScrollKmh>100) tierMult=1.65;
+    else if(this.bgScrollKmh>50) tierMult=1.35;
+    const bgSpd=this.bgScrollKmh*PX_PER_KMH*scrollMult*tierMult;
+    this.bgScroll=Math.max(0,this.bgScroll+bgSpd*dt);
+    this.bgLayers.forEach(l=>{l.g.x=-((this.bgScroll*l.factor)%this.TW);});
+
+    this.updateJump(dt);
+    this.updateBounce(dt);
+
+    // ── Буст во время прыжка: держим газ = летим дальше + красные огни ──
+    this.jumpBoost=gasHeld&&this.jumpPhase==='air';
+    if(this.jumpBoost){
+      if(this.bikeVY<0&&!this.boostImpulseDone){
+        this.bikeVY-=400*0.36; // +36% вертикальный импульс
+        this.boostImpulseDone=true;
+      }
+      this.bgScrollKmh=Math.min(KMH_MAX,this.bgScrollKmh+48*dt);
+    }
+
+    // ── Вобблинг переднего колеса после приземления ──
+    if(this.landingWobble){
+      this.landingWobblePhase+=14*dt;
+      this.landingWobbleAmt=Math.max(0,this.landingWobbleAmt-0.22*dt);
+      if(this.landingWobbleAmt<0.004)this.landingWobble=false;
+    }
+
+    // ── Скорость колёс (всегда вперёд — положительный угол) ──
+    if(!this.burnoutActive){
+      const targetRPS=this.onGround?Math.max(0,bgSpd/WHEEL_DIV):Math.max(0,this.wheelRPS-1.8*dt);
+      this.wheelRPS=Phaser.Math.Linear(this.wheelRPS,targetRPS,.22);
+      this.wAngle+=this.wheelRPS*dt; // всегда +, колёса всегда вперёд
+    }
+
+    if(this.shakeAmt>0){this.shakeX=(Math.random()-.5)*this.shakeAmt*2;this.shakeY=(Math.random()-.5)*this.shakeAmt*2;this.shakeAmt*=.78;if(this.shakeAmt<.4)this.shakeAmt=this.shakeX=this.shakeY=0;}
+
+    // ── Вращение байка ──
+    let rotTgt=this.targetRot;
+    if(this.jumpPhase==='none'){
+      if(this.burnoutActive){
+        // Первый запуск: максимальный козлик. Последующие: 50%
+        rotTgt = this.isFirstStart ? -0.62 : -0.31;
+      } else if(this.prepActive){
+        rotTgt=-0.08;
+      } else if(this.lurchActive){
+        rotTgt=-0.16;
+        this.lurchTimer-=dt; if(this.lurchTimer<=0)this.lurchActive=false;
+      } else if(this.brakeActive){
+        const bp = 1-(this.brakeTimer/0.50);
+        const peak = 0.25;
+        const r = bp < peak
+          ? (bp/peak)
+          : 1-((bp-peak)/0.75);
+        // При >50 км/ч — задираем, при <50 — слабее. Оба -20% от прежних
+        const brakePeak = this.prevBgKmh > 50 ? 0.44 : 0.21;
+        rotTgt = r * brakePeak;
+      } else if(gas){
+        rotTgt=-(0.01+this.vizKmh/KMH_MAX*0.065);
+      } else if(this.vizKmh>18){
+        rotTgt=0.08*(this.vizKmh/KMH_MAX);
+      } else if(this.vizKmh>5){
+        rotTgt=0.02;
+      } else {
+        rotTgt=0.015;
+      }
+      if(this.stopSpringActive){
+        this.stopSpringPhase+=8*dt;
+        rotTgt+=Math.sin(this.stopSpringPhase)*this.stopSpringAmt;
+        this.stopSpringAmt=Math.max(0,this.stopSpringAmt-0.08*dt);
+        if(this.stopSpringAmt<0.003)this.stopSpringActive=false;
+      }
+      if(this.landingWobble){
+        rotTgt+=Math.sin(this.landingWobblePhase)*this.landingWobbleAmt;
+      }
+    }
+    // ── Два колеса — два контакта с terrain ──
+    const WHEEL_BASE = 86;  // расстояние между колёсами (wF=32, wB=-54 → 86px)
+    const WHEEL_R    = 26;  // радиус + зазор под рамой
+    const bikeWorldX = this.bgScroll + W*0.36;
+
+    // Мировые X каждого колеса (с учётом текущего наклона)
+    const rearWorldX  = bikeWorldX - 54;
+    const frontWorldX = bikeWorldX + 32;
+
+    // Y поверхности под каждым колесом
+    const rearGroundY  = this.getTerrainY(rearWorldX);
+    const frontGroundY = this.getTerrainY(frontWorldX);
+
+    // Угол из двух точек контакта — физически точный
+    const twoWheelAngle = Math.atan2(frontGroundY - rearGroundY, WHEEL_BASE);
+    this.slopeAng = Phaser.Math.Clamp(twoWheelAngle, -0.55, 0.55);
+
+    // Y байка = средняя точка между двумя колёсами минус радиус
+    const midGroundY = (rearGroundY + frontGroundY) * 0.5;
+
+    if(this.onGround && this.jumpPhase==='none'){
+      // Прямое следование — никакого lerp, жёсткое сцепление с поверхностью
+      this.bikeBaseY = midGroundY - WHEEL_R;
+      this.groundY   = midGroundY;
+
+      // Физика склона
+      if(this.bgScrollKmh > 3){
+        const gravEffect = this.slopeAng * T_SLOPE_FORCE;
+        this.bgScrollKmh = Math.max(0, Math.min(KMH_MAX,
+          this.bgScrollKmh + gravEffect*dt));
+      }
+    } else {
+      // В воздухе — обновляем groundY для определения приземления
+      this.groundY = midGroundY;
+    }
+
+    // ── Вращение байка точно по склону ──
+    // В воздухе rotTgt уже установлен в updateJump,
+    // на земле добавляем slope к базовому вращению
+    if(this.jumpPhase==='none'){
+      this.bikeC.rotation = Phaser.Math.Linear(
+        this.bikeC.rotation, rotTgt + this.slopeAng, 0.22
+      );
+    } else {
+      this.bikeC.rotation = Phaser.Math.Linear(this.bikeC.rotation, rotTgt, 0.14);
+    }
+
+    // ── Позиция байка Y ──
+    const rot = this.bikeC.rotation;
+    // Компенсация Y от вращения (задн. или перед. колесо как ось)
+    const rotCompY = rot < 0 ? 54*Math.sin(rot) : -32*Math.sin(rot);
+    const bob = this.onGround&&this.bgScrollKmh>8
+      ? Math.sin(time*.009)*(0.3+this.bgScrollKmh/KMH_MAX*0.9) : 0;
+    this.bikeC.y = this.bikeBaseY + this.bounceY + bob + this.shakeY + rotCompY;
+    this.bikeC.x = W*0.36 + this.shakeX;
+
+    this.drawGarage();
+    this.drawTerrain();
+    this.drawWheels();
+    this.drawBike();
+    this.spawnDust();
+    this.updateParticles(dt);
+    this.drawParticles();
+    this.updateUI();
+  }
 }
 
-// ════════ ЦИКЛ + КАМЕРА ════════
-let camY=null,last=performance.now();
-function loop(now){
-  const dt=Math.min((now-last)/1000,0.033);last=now;
-  const p=updatePhysics(dt);
-  const targetCam=p.cy-H*0.52;
-  if(camY===null)camY=targetCam;
-  camY+=(targetCam-camY)*Math.min(1,7*dt);
-  ctx.clearRect(0,0,W,H);drawSky();
-  ctx.save();ctx.translate(0,-camY);
-  drawGround();
-  spawnSlip(p,dt); updateDrawParts(dt);     // камни/пыль под задним колесом
-  drawBike(p);
-  ctx.restore();
-  const deg=(p.a*180/Math.PI).toFixed(1);
-  document.getElementById('readout').innerHTML=
-    `рельеф: <b>${TERR_MODE==='LONG'?'ПОЛОГИЙ':'ОБРЫВИСТЫЙ'}</b> · наклон: <b>${deg}°</b>`+
-    `<br>скорость: <b>${Math.round(speed)}</b> · дист: <b>${Math.round(scroll/10)}</b> m`+
-    `<br>состояние: <b>${bike.airborne?'В ВОЗДУХЕ ✈':'НА ЗЕМЛЕ'}</b>`+
-    (slip>0.5?` · букс: <b>${slip.toFixed(0)}</b>`:'');
-  requestAnimationFrame(loop);
-}
-
-// ════════ УПРАВЛЕНИЕ: GAS — держать=газ, короткий тап=прыжок ════════
-const gas=document.getElementById('gas');
-const TAP_MS=200;
-let pressT=0, pressed=false, speedAtDown=0;
-function down(){ if(pressed)return; pressed=true; gasHeld=true; pressT=performance.now(); speedAtDown=speed; gas.classList.add('pressed'); }
-function up(){ if(!pressed)return; pressed=false; gasHeld=false; gas.classList.remove('pressed');
-  // короткое нажатие + байк уже ехал = прыжок (с места не прыгаем)
-  if(performance.now()-pressT < TAP_MS && speedAtDown > JUMP_MIN_SPD) jump();
-}
-['touchstart','mousedown'].forEach(e=>gas.addEventListener(e,ev=>{ev.preventDefault();down();},{passive:false}));
-['touchend','touchcancel','mouseup','mouseleave'].forEach(e=>gas.addEventListener(e,ev=>{ev.preventDefault();up();},{passive:false}));
-window.addEventListener('keydown',e=>{if((e.code==='Space'||e.code==='ArrowRight')&&!e.repeat)down();});
-window.addEventListener('keyup',e=>{if(e.code==='Space'||e.code==='ArrowRight')up();});
-const bT=document.getElementById('btn-terr'),bR=document.getElementById('btn-regen');
-bT.onclick=()=>{TERR_MODE=(TERR_MODE==='LONG')?'ANGULAR':'LONG';bT.textContent='РЕЛЬЕФ: '+(TERR_MODE==='LONG'?'ПОЛОГИЙ':'ОБРЫВИСТЫЙ');bT.classList.toggle('on',TERR_MODE==='LONG');rebuild();};
-bR.onclick=()=>rebuild();
-window.addEventListener('resize',resize);
-resize();requestAnimationFrame(loop);
+window.addEventListener('load',()=>{
+  H  = window.innerHeight - 155;
+  GY = H * 0.72;
+  BR = GY - 26;
+  window._TW  = W * TW_FACTOR;
+  window._TTW = W * TTW_FACTOR;
+  gc.style.height = H + 'px';
+  new Phaser.Game({
+    type:Phaser.AUTO, width:W, height:H,
+    parent:'game-container', backgroundColor:'#0e0c14',
+    scene:[GameScene],
+    scale:{mode:Phaser.Scale.NONE},
+    input:{activePointers:4}
+  });
+});
 </script>
 </body>
 </html>
