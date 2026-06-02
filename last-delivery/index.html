@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Bike Proto — каркас + физика</title>
+<title>Last Delivery</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;}
   html,body{width:100%;height:100%;background:#0a0806;overflow:hidden;touch-action:none;
@@ -61,7 +61,7 @@ function resize(){
 
 // ════════ РЕЛЬЕФ ════════
 const STEP=5;
-let TERRAIN=[],TW=0,seed=12345,TERR_MODE='HILLS';   // 'PLAIN'|'HILLS'|'CLIFFS'
+let TERRAIN=[],TW=0,GOAL=6000,seed=12345,TERR_MODE='HILLS';   // 'PLAIN'|'HILLS'|'CLIFFS'
 function rnd(){seed=(seed*9301+49297)%233280;return seed/233280;}
 function rr(a,b){return a+(b-a)*rnd();}
 const ss=t=>t*t*(3-2*t), easeOut=t=>1-Math.pow(1-t,2.2), easeIn=t=>Math.pow(t,2.2);
@@ -102,6 +102,7 @@ function makeFeats(mode){
   }
   push('HILL',W*1.5,-cy);push('FLAT',W*0.9,0);
   let x=0;f.forEach(s=>{s.sx=x;x+=s.w;});TW=x;
+  GOAL=Math.min(TW-W*2.5, 6000);   // дистанция до финиша Б (px); с запасом меньше длины карты
   return {feats:f};
 }
 function buildProfile(){
@@ -125,15 +126,29 @@ function buildProfile(){
     TERRAIN.push(y);   // ФИЗИКА: поверхность гладкая
   }
 }
-function rebuild(){seed=(Math.random()*99999)|0;buildProfile();scroll=0;speed=0;camY=null;bike.init=false;bike.airborne=false;bike.vy=0;parts.length=0;emit=0;wheelie=0;slip=0;}
+function rebuild(){seed=(Math.random()*99999)|0;buildProfile();scroll=0;speed=0;camY=null;bike.init=false;bike.airborne=false;bike.vy=0;parts.length=0;emit=0;wheelie=0;slip=0;forkTravel=0;forkVel=0;flapAng=0;flapVel=0;tapeBroken=false;cargo=CARGO_MAX;}
 function terrY(worldX){
   const tw=TW;let x=((worldX%tw)+tw)%tw;
   const i=Math.floor(x/STEP),t=(x-i*STEP)/STEP,n=TERRAIN.length;
   return GY+TERRAIN[i%n]+(TERRAIN[(i+1)%n]-TERRAIN[i%n])*t;
 }
 
+// ════════ СОСТОЯНИЕ ИГРЫ (модель заезда: уровни-доставки) ════════
+// READY → RIDING → DELIVERED | FAILED
+let gameState='READY';
+// ── груз: баллоны O₂, которые везём из А в Б ──
+let cargo=0;            // сколько баллонов на байке сейчас
+const CARGO_MAX=3;     // размер заказа — грузим столько на базе А
+function setState(s){ gameState=s; }
+function startRide(){ if(gameState==='READY'){ gameState='RIDING'; } }
+function resetRide(){ gameState='READY'; rebuild(); }
+
 // ════════ ФИЗИКА (жёсткая база) ════════
 let scroll=0,speed=0,gasHeld=false,wheelAngF=0,wheelAngR=0,slip=0,wheelie=0,spinF=0,spinR=0;
+let forkTravel=0, forkVel=0;     // визуальный ход задней подвески (пружина-демпфер)
+let flapAng=0, flapVel=0;        // хлоп задней крышки сетки (петля у пика): угол + скорость
+let tSec=0;                      // аккумулятор времени (для независимого дребезга прутьев)
+let tapeBroken=false;            // ленточка финиша Б: порвана ли (рвётся при пересечении)
 const CX=()=>W*0.38;
 const HALF=48, WR=20;
 const ENG=900, GRAV_ROLL=900, DRAG=1.5, SPD_MIN=-300, SPD_MAX=760, JUMP_MIN_SPD=70;
@@ -163,16 +178,17 @@ function updatePhysics(dt){
   if(!bike.init){bike.axleY=groundAxleY;bike.ang=groundAng;bike.init=true;}
 
   // ── продольная физика (только на земле) ──
+  const eng = gasHeld && gameState==='RIDING';   // газ работает только во время заезда
   if(!bike.airborne){
-    if(gasHeld) speed += ENG*dt;                       // двигатель
+    if(eng) speed += ENG*dt;                           // двигатель
     speed += GRAV_ROLL*Math.sin(groundAng)*dt;         // скатывание по склону (вниз +, вверх −)
     speed -= speed*DRAG*dt;                            // сопротивление качению (плавно к 0)
     speed = Math.max(SPD_MIN, Math.min(SPD_MAX, speed));
-    if(!gasHeld && Math.abs(speed)<6 && Math.abs(Math.sin(groundAng))<0.03) speed=0; // покой на ровном
+    if(!eng && Math.abs(speed)<6 && Math.abs(Math.sin(groundAng))<0.03) speed=0; // покой на ровном
   }
   // ── пробуксовка заднего колеса: старт с низкой скорости + крутой подъём ──
   let slipRate=0, wTarget=0;
-  if(!bike.airborne && gasHeld && speed>-5){
+  if(!bike.airborne && eng && speed>-5){
     const launch=Math.max(0,1-Math.abs(speed)/LAUNCH_SPD);                        // трогание с места / после остановки
     const steep =Math.max(0,(-Math.sin(groundAng)-SLIP_THRESH)/(1-SLIP_THRESH));  // крутой/затяжной подъём
     slipRate=SLIP_GAIN*Math.min(1.2, launch*0.9 + steep);
@@ -195,6 +211,8 @@ function updatePhysics(dt){
       const impact=bike.vy;
       bike.airborne=false;bike.axleY=groundAxleY;bike.vy=0;
       landingPuff(s.rx,s.gR,Math.min(1,impact/600));   // пыль/камни от удара
+      forkVel += Math.min(300, impact*0.7);            // просадка заднего: толчок сжатия от удара
+      flapVel -= Math.min(9, impact*0.022);            // удар подкидывает крышку сетки вверх
     }
   } else {
     bike.axleY=groundAxleY;
@@ -202,13 +220,27 @@ function updatePhysics(dt){
   }
 
   const a=bike.ang, axleY=bike.axleY;
+  // ── ход задней подвески: пружина-демпфер к статике; толчок при приземлении ──
+  forkVel += ((0-forkTravel)*260 - forkVel*16)*dt;
+  forkTravel += forkVel*dt;
+  forkTravel = Math.max(-8, Math.min(30, forkTravel));   // потолок просадки
+  // ── хлоп задней крышки сетки: жёсткая пружина + сильный демпфер = металлич. дребезг ──
+  // (крышка — единственный реально подвижный элемент; бьётся резко и быстро затухает)
+  const shake = bike.airborne ? 0 : Math.abs(speed)*0.05*(0.6+slip*0.05);
+  flapVel += ((0-flapAng)*420 - flapVel*7)*dt + (Math.random()-0.5)*shake*dt;
+  flapAng += flapVel*dt;
+  flapAng = Math.max(-0.805, Math.min(0.115, flapAng));  // амплитуда качания +15%
+  tSec += dt;                                            // глобальное время для дребезга прутьев
   // ── вилли: пивот вокруг заднего колеса, переднее приподнимается ──
   const w=bike.airborne?0:wheelie;
   const aEff=a-w;                                   // нос вверх
   const rx=cx-HALF*Math.cos(a), ry=axleY-HALF*Math.sin(a);   // заднее колесо остаётся на месте
   const axCx=rx+HALF*Math.cos(aEff), axCy=ry+HALF*Math.sin(aEff);
+  // заднее колесо смещается на величину хода подвески (пивот вилли остаётся жёстким — rx,ry)
+  const upx=Math.sin(aEff), upy=-Math.cos(aEff);
+  const rxd=rx+upx*forkTravel, ryd=ry+upy*forkTravel;
   return {cx:axCx,a:aEff,axleY:axCy,cy:axCy-16,
-    rear:{x:rx,y:ry},
+    rear:{x:rxd,y:ryd},
     front:{x:rx+2*HALF*Math.cos(aEff),y:ry+2*HALF*Math.sin(aEff)},
     gR:s.gR,gF:s.gF};
 }
@@ -272,7 +304,7 @@ const RUST={
 function drawFrame(cx,axleY,a){
   ctx.save();ctx.translate(cx,axleY);ctx.rotate(a);
   const LIFT=16; ctx.translate(0,-LIFT);            // приподнять корпус над колёсами (клиренс)
-  const RAX={x:-HALF,y:LIFT}, FAX={x:HALF,y:LIFT};  // колёса остаются на оси
+  const RAX={x:-HALF,y:LIFT-forkTravel}, FAX={x:HALF,y:LIFT};  // ход на заднем колесе
   const pivot={x:-8,y:-4}, head={x:26,y:-38};   // шарнир маятника / голова рамы (верх вилки)
 
   // ── задний горизонтальный глушитель (торчит назад) ──
@@ -328,6 +360,59 @@ function drawFrame(cx,axleY,a){
   ctx.lineTo(-2,-30);ctx.closePath();ctx.fill();
   ctx.fillStyle=RUST.seatHi;ctx.fillRect(-30,-32,24,1.4);
 
+  // ── СЕТКА ПОД БАЛЛОНЫ (кривой самосварной каркас по эскизу; за седлом, над колесом) ──
+  {
+    // неровные углы; задний торец уехал назад (за выхлоп, который кончается ≈-62)
+    const FB=[-26,-25], FT=[-28,-47], RB=[-78,-22];
+    const APEX=[-38,-57];                                 // ВЕРШИНА угла (~44.5°, +15%) — статична, петля тут
+    const HINGE=APEX;                                     // крышка крепится к вершине
+    const RTrest=[-80,-49];                              // покой: длинная грань идёт назад-вниз от вершины
+    const ca=Math.cos(flapAng), sa=Math.sin(flapAng);
+    const dxr=RTrest[0]-HINGE[0], dyr=RTrest[1]-HINGE[1];
+    const RT=[HINGE[0]+dxr*ca-dyr*sa, HINGE[1]+dxr*sa+dyr*ca];  // длинная часть качается вокруг вершины
+    const lerp=(a,b,t)=>[a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t];
+    const mv=p=>ctx.lineTo(p[0],p[1]);
+    // нижний горизонтальный прут длиннее низа на 12% (выступает назад)
+    const RBlong=[FB[0]+(RB[0]-FB[0])*1.12, RB[1]];
+
+    ctx.lineCap='round';ctx.lineJoin='round';
+    // — опоры вниз к раме/оси —
+    ctx.strokeStyle=RUST.steelDk;ctx.lineWidth=3;
+    ctx.beginPath();
+    ctx.moveTo(FB[0],FB[1]);ctx.lineTo(-30,-9);          // передняя опора → подрама
+    ctx.moveTo(RB[0],RB[1]);ctx.lineTo(-54,-5);          // задняя опора → задняя ось
+    ctx.moveTo(RB[0]+2,RB[1]);ctx.lineTo(FB[0]-2,-12);ctx.stroke(); // косой раскос
+    // — нижний прут (длиннее на 12%) —
+    ctx.strokeStyle=RUST.steel;ctx.lineWidth=3.2;
+    ctx.beginPath();ctx.moveTo(FB[0],FB[1]);ctx.lineTo(RBlong[0],RBlong[1]);ctx.stroke();
+    // — контур: зад→FB→FT→вершина (передний скос FT→APEX ~35° НЕПОДВИЖЕН) —
+    ctx.beginPath();ctx.moveTo(RB[0],RB[1]);mv(FB);mv(FT);mv(APEX);ctx.stroke();
+    // — БОЛТАЮЩАЯСЯ длинная грань: вершина APEX → задний конец RT —
+    ctx.strokeStyle=RUST.steel;ctx.lineWidth=3.2;
+    ctx.beginPath();ctx.moveTo(HINGE[0],HINGE[1]);ctx.lineTo(RT[0],RT[1]);ctx.stroke();
+    ctx.strokeStyle=RUST.steelLt;ctx.lineWidth=1.1;     // блик на грани и переднем скосе
+    ctx.beginPath();ctx.moveTo(HINGE[0],HINGE[1]);ctx.lineTo(RT[0],RT[1]);ctx.moveTo(FT[0],FT[1]);mv(APEX);ctx.stroke();
+    // — 2 горизонт. перегородки: ФИКСИРОВАНЫ, удлинены вправо на 20%, мелкий дребезг вразнобой —
+    const RTfix=[-80,-47];                               // статичный задний верх (не качается)
+    const jit = bike.airborne ? 0.15 : (0.4+Math.min(1,Math.abs(speed)/120));
+    ctx.strokeStyle=RUST.steel;ctx.lineWidth=2.4;
+    [{t:0.40, f:23, ph:0.0, amp:0.575},
+     {t:0.72, f:17, ph:1.7, amp:0.92}].forEach(s=>{
+      const a0=lerp(RB,RTfix,s.t), b=lerp(FB,FT,s.t);
+      const a=[b[0]+(a0[0]-b[0])*1.20, b[1]+(a0[1]-b[1])*1.20];   // +20% длины вправо (назад)
+      const wob = Math.sin(tSec*s.f + s.ph)*s.amp*jit;
+      ctx.beginPath();ctx.moveTo(a[0],a[1]+wob);ctx.lineTo(b[0],b[1]+wob*0.25);ctx.stroke();
+    });
+    ctx.lineCap='butt';ctx.lineJoin='miter';
+    // — заклёпки по узлам; петля (вершина) выделена —
+    ctx.fillStyle=RUST.engineDk;
+    [FB,FT,RB].forEach(([x,y])=>{ctx.beginPath();ctx.arc(x,y,1.5,0,7);ctx.fill();});
+    ctx.fillStyle=RUST.steelLt;ctx.beginPath();ctx.arc(HINGE[0],HINGE[1],1.8,0,7);ctx.fill();
+  }
+
+
+
+
   // ── ВИЛКА (длинная, раскатанная) + тройник + руль ──
   fork(head,FAX);
   ctx.fillStyle=RUST.engine;ctx.save();ctx.translate(head.x,head.y);ctx.rotate(0.5);
@@ -363,6 +448,54 @@ function drawGround(){
   ctx.lineWidth=4;ctx.strokeStyle='#8a5a2a';ctx.stroke();
   ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);pts.forEach(p=>ctx.lineTo(p.x,p.y));
   ctx.lineWidth=1.5;ctx.strokeStyle='rgba(255,150,40,0.5)';ctx.stroke();
+  drawBaseA();
+  drawFinish();
+}
+function drawFinish(){
+  const fx=GOAL-scroll;                       // экранный X финиша
+  if(fx<-60||fx>W+60)return;
+  const fy=terrY(GOAL);
+  const H1=72;                                // высота стоек
+  // две стойки финишных ворот
+  ctx.fillStyle='#2a2018';
+  ctx.fillRect(fx-3,fy-H1,6,H1); ctx.fillRect(fx+30-3,fy-H1,6,H1);
+  ctx.fillStyle='#3a2c1e';
+  ctx.fillRect(fx-3,fy-H1,6,4); ctx.fillRect(fx+30-3,fy-H1,6,4);
+  // подпись Б на левой стойке
+  ctx.fillStyle='#ffd9a0';ctx.font='bold 14px sans-serif';ctx.textAlign='center';
+  ctx.fillText('Б', fx+15, fy-H1-6);ctx.textAlign='left';
+  // ── ЛЕНТОЧКА-ФИНИШ (поперёк ворот, на высоте груди байка) ──
+  const ty=fy-30, x0=fx, x1=fx+30;
+  if(!tapeBroken){
+    // целая: натянутая лента с лёгкой провисью
+    ctx.strokeStyle='#e23c3c';ctx.lineWidth=4;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(x0,ty);ctx.quadraticCurveTo((x0+x1)/2,ty+3,x1,ty);ctx.stroke();
+    ctx.strokeStyle='#ff7a6a';ctx.lineWidth=1.4;          // блик
+    ctx.beginPath();ctx.moveTo(x0,ty-1);ctx.quadraticCurveTo((x0+x1)/2,ty+2,x1,ty-1);ctx.stroke();
+    ctx.lineCap='butt';
+  } else {
+    // порвана: два свисающих обрывка от стоек
+    ctx.strokeStyle='#e23c3c';ctx.lineWidth=4;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(x0,ty);ctx.quadraticCurveTo(x0+4,ty+10,x0+2,ty+20);ctx.stroke();   // левый обрывок
+    ctx.beginPath();ctx.moveTo(x1,ty);ctx.quadraticCurveTo(x1-5,ty+9,x1-3,ty+18);ctx.stroke();    // правый обрывок
+    ctx.lineCap='butt';
+  }
+}
+// ════════ СТАРТ — одиночный красный флажок (на линии старта байка) ════════
+const START_X = ()=> CX() + HALF + 6;       // мировой X = стартовая позиция байка + у переднего колеса
+function drawBaseA(){
+  const sxw = START_X();
+  const fx = sxw - scroll;                   // экранный X (мир − скролл, как финиш)
+  if(fx<-40||fx>W+40) return;
+  const gy = terrY(sxw);
+  // узкий длинный красный флажок: тонкий шест + вытянутый треугольный вымпел
+  ctx.strokeStyle='#cfcfcf';ctx.lineWidth=2;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(fx,gy);ctx.lineTo(fx,gy-92);ctx.stroke();ctx.lineCap='butt'; // шест
+  ctx.fillStyle='#7a7a7a';ctx.beginPath();ctx.arc(fx,gy-92,2.4,0,7);ctx.fill();           // навершие
+  ctx.fillStyle='#e23c3c';                  // вымпел
+  ctx.beginPath();ctx.moveTo(fx+1,gy-92);ctx.lineTo(fx+30,gy-84);ctx.lineTo(fx+1,gy-76);ctx.closePath();ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.18)';   // блик
+  ctx.beginPath();ctx.moveTo(fx+1,gy-92);ctx.lineTo(fx+16,gy-88.5);ctx.lineTo(fx+1,gy-85);ctx.closePath();ctx.fill();
 }
 
 function landingPuff(x,y,power){
@@ -410,6 +543,9 @@ let camY=null,last=performance.now();
 function loop(now){
   const dt=Math.min((now-last)/1000,0.033);last=now;
   const p=updatePhysics(dt);
+  // финиш Б: байк доехал до целевой дистанции
+  if(scroll+CX() >= GOAL) tapeBroken=true;            // ленточка рвётся при пересечении
+  if(gameState==='RIDING' && scroll+CX() >= GOAL){ setState('DELIVERED'); }
   const targetCam=p.cy-H*0.52;
   if(camY===null)camY=targetCam;
   camY+=(targetCam-camY)*Math.min(1,7*dt);
@@ -420,10 +556,12 @@ function loop(now){
   drawBike(p);
   ctx.restore();
   const deg=(p.a*180/Math.PI).toFixed(1);
+  const ST={READY:'база А — жми ГАЗ',RIDING:'ЗАЕЗД',DELIVERED:'ДОСТАВЛЕНО ✓',FAILED:'ПРОВАЛ ✗'}[gameState];
+  const remain=Math.max(0,Math.round((GOAL-(scroll+CX()))/10));
   document.getElementById('readout').innerHTML=
     `рельеф: <b>${TERR_INFO[TERR_MODE].label}</b> · наклон: <b>${deg}°</b>`+
-    `<br>скорость: <b>${Math.round(speed)}</b> · дист: <b>${Math.round(scroll/10)}</b> m`+
-    `<br>состояние: <b>${bike.airborne?'В ВОЗДУХЕ ✈':'НА ЗЕМЛЕ'}</b>`+
+    `<br>скорость: <b>${Math.round(speed)}</b> · до Б: <b>${remain}</b> m · груз: <b>${cargo}/${CARGO_MAX}</b>`+
+    `<br>статус: <b>${ST}</b>`+
     (slip>0.5?` · букс: <b>${slip.toFixed(0)}</b>`:'');
   requestAnimationFrame(loop);
 }
@@ -432,10 +570,12 @@ function loop(now){
 const gas=document.getElementById('gas');
 const TAP_MS=200;
 let pressT=0, pressed=false, speedAtDown=0;
-function down(){ if(pressed)return; pressed=true; gasHeld=true; pressT=performance.now(); speedAtDown=speed; gas.classList.add('pressed'); }
+function down(){ if(pressed)return; pressed=true; gasHeld=true; pressT=performance.now(); speedAtDown=speed; gas.classList.add('pressed');
+  if(gameState==='READY') startRide();              // первый зажим газа = старт заезда
+}
 function up(){ if(!pressed)return; pressed=false; gasHeld=false; gas.classList.remove('pressed');
-  // короткое нажатие + байк уже ехал = прыжок (с места не прыгаем)
-  if(performance.now()-pressT < TAP_MS && speedAtDown > JUMP_MIN_SPD) jump();
+  // короткое нажатие + байк уже ехал = прыжок (с места не прыгаем), только во время заезда
+  if(gameState==='RIDING' && performance.now()-pressT < TAP_MS && speedAtDown > JUMP_MIN_SPD) jump();
 }
 ['touchstart','mousedown'].forEach(e=>gas.addEventListener(e,ev=>{ev.preventDefault();down();},{passive:false}));
 ['touchend','touchcancel','mouseup','mouseleave'].forEach(e=>gas.addEventListener(e,ev=>{ev.preventDefault();up();},{passive:false}));
@@ -449,8 +589,8 @@ function applyTerrUI(){
   bT.textContent='РЕЛЬЕФ: '+info.label;
   bT.classList.remove('t-plain','t-hills','t-cliffs');bT.classList.add(info.cls);
 }
-bT.onclick=()=>{ TERR_MODE=TERR_ORDER[(TERR_ORDER.indexOf(TERR_MODE)+1)%3]; applyTerrUI(); rebuild(); };
-bR.onclick=()=>rebuild();
+bT.onclick=()=>{ TERR_MODE=TERR_ORDER[(TERR_ORDER.indexOf(TERR_MODE)+1)%3]; applyTerrUI(); resetRide(); };
+bR.onclick=()=>resetRide();
 applyTerrUI();
 window.addEventListener('resize',resize);
 resize();requestAnimationFrame(loop);
