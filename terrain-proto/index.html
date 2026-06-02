@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Bike Proto — каркас + физика</title>
+<title>Bike + Terrain — база (мотоцикл + 3 рельефа)</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;}
   html,body{width:100%;height:100%;background:#0a0806;overflow:hidden;touch-action:none;
@@ -125,7 +125,7 @@ function buildProfile(){
     TERRAIN.push(y);   // ФИЗИКА: поверхность гладкая
   }
 }
-function rebuild(){seed=(Math.random()*99999)|0;buildProfile();scroll=0;speed=0;camY=null;bike.init=false;bike.airborne=false;bike.vy=0;parts.length=0;emit=0;wheelie=0;slip=0;}
+function rebuild(){seed=(Math.random()*99999)|0;buildProfile();scroll=0;speed=0;camY=null;bike.init=false;bike.airborne=false;bike.vy=0;parts.length=0;emit=0;wheelie=0;slip=0;forkTravel=0;forkGFprev=null;forkVel=0;}
 function terrY(worldX){
   const tw=TW;let x=((worldX%tw)+tw)%tw;
   const i=Math.floor(x/STEP),t=(x-i*STEP)/STEP,n=TERRAIN.length;
@@ -134,12 +134,13 @@ function terrY(worldX){
 
 // ════════ ФИЗИКА (жёсткая база) ════════
 let scroll=0,speed=0,gasHeld=false,wheelAngF=0,wheelAngR=0,slip=0,wheelie=0,spinF=0,spinR=0;
+let forkTravel=0, forkGFprev=null, forkVel=0;     // визуальный ход задней подвески (пружина-демпфер)
 const CX=()=>W*0.38;
 const HALF=48, WR=20;
 const ENG=900, GRAV_ROLL=900, DRAG=1.5, SPD_MIN=-300, SPD_MAX=760, JUMP_MIN_SPD=70;
 const JUMP_V=560, GRAV=1500, AIR_ANG=-0.16;   // прыжок: импульс вверх, гравитация, наклон в воздухе
 const SLIP_THRESH=0.25, SLIP_GAIN=34, LAUNCH_SPD=220;   // буксование: порог склона, сила, скорость «схватывания»
-const WHEELIE_MAX=0.22;                                  // подскок носа на старте (рад, ~13°)
+const WHEELIE_MAX=0.258;                                  // подскок носа на старте (+5%, ~15°)
 // состояние байка (земля/воздух)
 const bike={airborne:false, axleY:0, ang:0, vy:0, init:false};
 // частицы из-под колеса (камни + пыль)
@@ -163,16 +164,17 @@ function updatePhysics(dt){
   if(!bike.init){bike.axleY=groundAxleY;bike.ang=groundAng;bike.init=true;}
 
   // ── продольная физика (только на земле) ──
+  const eng = gasHeld;                              // вольная езда: газ работает всегда
   if(!bike.airborne){
-    if(gasHeld) speed += ENG*dt;                       // двигатель
+    if(eng) speed += ENG*dt;                           // двигатель
     speed += GRAV_ROLL*Math.sin(groundAng)*dt;         // скатывание по склону (вниз +, вверх −)
     speed -= speed*DRAG*dt;                            // сопротивление качению (плавно к 0)
     speed = Math.max(SPD_MIN, Math.min(SPD_MAX, speed));
-    if(!gasHeld && Math.abs(speed)<6 && Math.abs(Math.sin(groundAng))<0.03) speed=0; // покой на ровном
+    if(!eng && Math.abs(speed)<6 && Math.abs(Math.sin(groundAng))<0.03) speed=0; // покой на ровном
   }
   // ── пробуксовка заднего колеса: старт с низкой скорости + крутой подъём ──
   let slipRate=0, wTarget=0;
-  if(!bike.airborne && gasHeld && speed>-5){
+  if(!bike.airborne && eng && speed>-5){
     const launch=Math.max(0,1-Math.abs(speed)/LAUNCH_SPD);                        // трогание с места / после остановки
     const steep =Math.max(0,(-Math.sin(groundAng)-SLIP_THRESH)/(1-SLIP_THRESH));  // крутой/затяжной подъём
     slipRate=SLIP_GAIN*Math.min(1.2, launch*0.9 + steep);
@@ -195,6 +197,7 @@ function updatePhysics(dt){
       const impact=bike.vy;
       bike.airborne=false;bike.axleY=groundAxleY;bike.vy=0;
       landingPuff(s.rx,s.gR,Math.min(1,impact/600));   // пыль/камни от удара
+      forkVel += Math.min(300, impact*0.7);            // просадка заднего: толчок сжатия от удара (усилен)
     }
   } else {
     bike.axleY=groundAxleY;
@@ -202,13 +205,21 @@ function updatePhysics(dt){
   }
 
   const a=bike.ang, axleY=bike.axleY;
+  // ── ход задней подвески: только просадка при приземлении (пружина-демпфер к статике) ──
+  // forkVel получает толчок при касании земли после прыжка; в покое подвеска статична
+  forkVel += ((0-forkTravel)*260 - forkVel*16)*dt;
+  forkTravel += forkVel*dt;
+  forkTravel = Math.max(-8, Math.min(30, forkTravel));   // потолок просадки
   // ── вилли: пивот вокруг заднего колеса, переднее приподнимается ──
   const w=bike.airborne?0:wheelie;
   const aEff=a-w;                                   // нос вверх
   const rx=cx-HALF*Math.cos(a), ry=axleY-HALF*Math.sin(a);   // заднее колесо остаётся на месте
   const axCx=rx+HALF*Math.cos(aEff), axCy=ry+HALF*Math.sin(aEff);
+  // заднее колесо смещается на величину хода (пивот вилли остаётся жёстким — rx,ry)
+  const upx=Math.sin(aEff), upy=-Math.cos(aEff);
+  const rxd=rx+upx*forkTravel, ryd=ry+upy*forkTravel;
   return {cx:axCx,a:aEff,axleY:axCy,cy:axCy-16,
-    rear:{x:rx,y:ry},
+    rear:{x:rxd,y:ryd},
     front:{x:rx+2*HALF*Math.cos(aEff),y:ry+2*HALF*Math.sin(aEff)},
     gR:s.gR,gF:s.gF};
 }
@@ -272,7 +283,7 @@ const RUST={
 function drawFrame(cx,axleY,a){
   ctx.save();ctx.translate(cx,axleY);ctx.rotate(a);
   const LIFT=16; ctx.translate(0,-LIFT);            // приподнять корпус над колёсами (клиренс)
-  const RAX={x:-HALF,y:LIFT}, FAX={x:HALF,y:LIFT};  // колёса остаются на оси
+  const RAX={x:-HALF,y:LIFT-forkTravel}, FAX={x:HALF,y:LIFT};  // ход на заднем колесе
   const pivot={x:-8,y:-4}, head={x:26,y:-38};   // шарнир маятника / голова рамы (верх вилки)
 
   // ── задний горизонтальный глушитель (торчит назад) ──
