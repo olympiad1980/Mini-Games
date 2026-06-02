@@ -11,7 +11,7 @@
   #wrap{position:relative;width:100%;height:100dvh;height:100vh;}
   canvas{display:block;width:100%;height:100%;}
   #hud{position:absolute;top:0;left:0;right:0;padding:10px 12px;
-    display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;pointer-events:none;z-index:10;}
+    display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;pointer-events:none;z-index:10;}
   .chip{pointer-events:auto;font-size:11px;letter-spacing:1px;
     background:rgba(15,10,5,0.72);border:1px solid rgba(251,146,60,0.28);
     color:rgba(251,146,60,0.92);padding:7px 12px;border-radius:7px;
@@ -42,8 +42,9 @@
 <div id="wrap">
   <canvas id="cv"></canvas>
   <div id="hud">
-    <div class="chip t-hills" id="btn-terr">РЕЛЬЕФ: ХОЛМЫ</div>
-    <div class="chip" id="btn-regen">СЛУЧАЙНЫЙ ВЫБОР</div>
+    <div class="chip t-hills" id="btn-terr" style="display:none">РЕЛЬЕФ: ХОЛМЫ</div>
+    <div class="chip" id="btn-regen" style="display:none">СЛУЧАЙНЫЙ ВЫБОР</div>
+    <div class="chip" id="btn-pack" style="font-size:16.5px;padding:11px 18px;min-width:225px;">УКЛАДКА: ПИРАМИДКА</div>
   </div>
   <div id="readout"></div>
   <div id="gas">GAS</div>
@@ -148,6 +149,16 @@ let scroll=0,speed=0,gasHeld=false,wheelAngF=0,wheelAngR=0,slip=0,wheelie=0,spin
 let forkTravel=0, forkVel=0;     // визуальный ход задней подвески (пружина-демпфер)
 let flapAng=0, flapVel=0;        // хлоп задней крышки сетки (петля у пика): угол + скорость
 let tSec=0;                      // аккумулятор времени (для независимого дребезга прутьев)
+// раскладки баллонов в клетке (для подбора вида; [x,y,поворот])
+const PACK_LAYOUTS={
+  PYRAMID:[[-40,-29.5,0.06],[-58,-29.0,-0.05],[-49,-41.0,0.02]],   // 2 внизу + 1 в ямке
+  ROW:    [[-38,-29,0.05],[-52,-30,-0.04],[-66,-28.5,0.07]],       // ряд вразброс
+  STAIRS: [[-36,-43,0.06],[-50,-35,0.10],[-64,-28,0.04]],          // лесенка-диагональ (подъём к переду)
+  CROSS:  [[-42,-29,0.05],[-60,-29,-0.05],[-50,-42,0.9]]           // два вдоль + один поперёк
+};
+const PACK_ORDER=['PYRAMID','ROW','STAIRS','CROSS'];
+const PACK_LABEL={PYRAMID:'ПИРАМИДКА',ROW:'РЯД',STAIRS:'ЛЕСЕНКА',CROSS:'ПОПЕРЁК'};
+let packMode='PYRAMID';
 let tapeBroken=false;            // ленточка финиша Б: порвана ли (рвётся при пересечении)
 const CX=()=>W*0.38;
 const HALF=48, WR=20;
@@ -376,6 +387,31 @@ function drawFrame(cx,axleY,a){
     const RBlong=[FB[0]+(RB[0]-FB[0])*1.12, RB[1]];
 
     ctx.lineCap='round';ctx.lineJoin='round';
+
+    // ── БАЛЛОНЫ O₂ в клетке (серый ржавый металл, лёжа на боку, с краником) ──
+    // пробная раскладка: 2 внизу + 1 сверху в ямке; без физики
+    const drawTank=(cxT,cyT,rot)=>{
+      ctx.save();ctx.translate(cxT,cyT);ctx.rotate(rot);
+      const L=31, R=7.4;                                  // крупный баллон лёжа (+20%)
+      // корпус — грязно-серый металл с бурым подтоном (не новый)
+      ctx.fillStyle='#827d74';ctx.beginPath();ctx.roundRect(-L/2,-R,L,R*2,R);ctx.fill();
+      ctx.fillStyle='rgba(58,42,28,0.28)';                // бурая грязь по низу
+      ctx.beginPath();ctx.roundRect(-L/2,R*0.0,L,R,R*0.7);ctx.fill();
+      ctx.fillStyle='rgba(0,0,0,0.22)';                   // нижняя объёмная тень
+      ctx.beginPath();ctx.roundRect(-L/2,R*0.45,L,R*0.55,R*0.5);ctx.fill();
+      ctx.fillStyle='rgba(245,242,236,0.14)';             // верхний продольный блик
+      ctx.fillRect(-L/2+R,-R+1.6,L-R*1.7,1.6);
+      ctx.fillStyle='#6e6960';ctx.beginPath();ctx.ellipse(-L/2+2,0,2,R*0.9,0,0,7);ctx.fill(); // дно-купол слева
+      // «пиптик» сверху с краником (горловина-вентиль, торчит вверх) — читаемый
+      const nx=L*0.28;
+      ctx.fillStyle='#56524b';ctx.fillRect(nx-1.6,-R-3.5,3.2,4);  // шейка пиптика
+      ctx.fillStyle='#6a5230';ctx.fillRect(nx-2.8,-R-5.8,5.6,2.6);// краник (латунный маховик)
+      ctx.fillStyle='#3a2c18';ctx.fillRect(nx-0.7,-R-5.8,1.4,2.6);// ось краника
+      ctx.restore();
+    };
+    // раскладки на выбор (кнопка УКЛАДКА): [x, y, поворот]
+    PACK_LAYOUTS[packMode].forEach(t=>drawTank(t[0],t[1],t[2]));
+
     // — опоры вниз к раме/оси —
     ctx.strokeStyle=RUST.steelDk;ctx.lineWidth=3;
     ctx.beginPath();
@@ -588,6 +624,8 @@ function applyTerrUI(){
 }
 bT.onclick=()=>{ TERR_MODE=TERR_ORDER[(TERR_ORDER.indexOf(TERR_MODE)+1)%3]; applyTerrUI(); resetRide(); };
 bR.onclick=()=>resetRide();
+const bP=document.getElementById('btn-pack');
+bP.onclick=()=>{ packMode=PACK_ORDER[(PACK_ORDER.indexOf(packMode)+1)%PACK_ORDER.length]; bP.textContent='УКЛАДКА: '+PACK_LABEL[packMode]; };
 applyTerrUI();
 window.addEventListener('resize',resize);
 resize();requestAnimationFrame(loop);
