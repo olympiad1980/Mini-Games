@@ -89,6 +89,9 @@ function makeFeats(mode){
       ()=>{push('STEP',rr(0.30,0.44)*W,-rr(0.14,0.24)*U);},                                                    // ступенька/обрывчик
       ()=>{push('PEAK_UP',rr(0.5,0.7)*W,-rr(0.22,0.32)*U);push('PEAK_DN',rr(0.5,0.7)*W,rr(0.22,0.32)*U);},
       ()=>{push('ROLL',rr(0.8,1.2)*W,rr(-0.10,0.10)*U);},
+      // ярусный подъём на гору + ДЛИННЫЙ ЗАТЯЖНОЙ СПУСК ~45° (средний наклон ≈0.9 → ~42°, пик ~50°)
+      ()=>{push('HILL',rr(0.7,0.9)*W,-rr(0.26,0.34)*U);push('HILL',rr(0.7,0.9)*W,-rr(0.26,0.34)*U);
+           push('HILL',rr(1.3,1.7)*W,rr(0.55,0.72)*U);},
     ];
     for(let i=0;i<9;i++){b[rnd()*b.length|0]();push('FLAT',rr(0.12,0.30)*W,0);}
   } else { // CLIFFS
@@ -251,8 +254,8 @@ function updatePhysics(dt){
       bounceV -= Math.min(7, impact*0.012);            // удар подкидывает груз/перегородки вверх
       // СИЛА УДАРА = vy касания (содержит высоту/airtime). Калибровка: обычный прыжок (~560)
       // ≈1.5%, жёсткое приземление (~1000) ≈10% → ~10 жёстких ударов до 100%.
-      const over=Math.max(0, impact-417);              // порог: обычный прыжок (~560) даёт лишь 0.6%
-      const kick=Math.min(0.18, over*over*0.000000293);// (vy−порог)² · k; жёсткое (~1000) ≈10%
+      const over=Math.max(0, impact-153);              // средний прыжок (~560) ≈3%
+      const kick=Math.min(0.22, over*over*0.0000001808);// жёсткое (~1000) ≈13%, с обрыва ≈20%+
       tanks.forEach((t,i)=>{ t.w=Math.min(1, t.w + kick*(1.0+i*0.06)); });
       if(kick>0.0005){ dmgJump+=kick; logEvent('ПРЫЖОК', Math.round(impact), kick); } // лог удара
       slopeAccum=0;                                     // спуск завершился приземлением — сбросить накопитель
@@ -282,10 +285,14 @@ function updatePhysics(dt){
   // сигнал = как быстро БАЙК ТЕРЯЕТ ВЫСОТУ на земле (надёжнее угла: ловит и спуск, и падение
   // в яму). Подъём вверх / прямая / газ — высота не падает → урон 0. Перегазовка убрана.
   let rough=0;
-  if(!bike.airborne && prevAxleY!==null){
-    const drop=(bike.axleY-prevAxleY)/Math.max(dt,0.001);   // px/сек вниз (axleY растёт вниз)
-    if(drop>280){ rough += (drop-280)*0.00000625; slopeAccum+=rough; }  // крутой спуск (×0.5 от прежнего)
-    else if(slopeAccum>0.0005){                              // спуск кончился → записать одним событием
+  if(!bike.airborne){
+    // урон спуска от КРУТИЗНЫ угла (не от скорости снижения — иначе длинный разгонный
+    // спуск накручивал урон скоростью). Порог 44°: пологие/средние = 0, круче 44° копит.
+    const TH=0.768;                                          // 44° в радианах
+    if(bike.ang>TH){
+      const spd=0.8+0.2*Math.min(1,Math.abs(speed)/500);     // скорость — мягкий множитель 0.8..1.0
+      rough += (bike.ang-TH)*spd*0.45*dt; slopeAccum+=rough;
+    } else if(slopeAccum>0.0005){                            // спуск кончился → записать одним событием
       dmgSlope+=slopeAccum; logEvent('СПУСК', null, slopeAccum); slopeAccum=0;
     }
   }
