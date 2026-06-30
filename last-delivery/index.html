@@ -240,12 +240,14 @@ function buildProfile(){
 // КЛОББЕРИТ игровое состояние, поэтому вызывается из rebuild ПЕРЕД финальным сбросом.
 function measureParTime(){
   scroll=0;speed=0;camY=null;bike.init=false;bike.airborne=false;bike.vy=0;
-  nextRamp=0;startMoved=false;launchWheelie=0;pitEjected=false;ejected=null;
+  nextRamp=0;startMoved=false;launchWheelie=0;pitEjected=false;floorScrape=false;pitStall=false;coyote=0;ejected=null;
   forkTravel=0;forkVel=0;flapAng=0;flapVel=0;bounce=0;bounceV=0;bar=0;barV=0;wheelie=0;slip=0;slopeShake=0;slopeAccum=0;prevGroundAng=0;prevAxleY=null;
   loadCargo();
   const gs=gameState; gameState='RIDING';
-  let t=0, ok=false;
-  for(let i=0;i<20000;i++){ gasHeld=true; updatePhysics(1/60); t+=1/60; if(scroll+CX()>=GOAL){ ok=true; break; } }
+  let t=0, ok=false; const jumped=new Set();        // par считаем по ОПТИМАЛЬНОЙ линии: ghost ПЕРЕПРЫГИВАЕТ ямы (а не падает и глохнет)
+  for(let i=0;i<20000;i++){ gasHeld=true; const wx=scroll+CX();
+    for(let pi=0;pi<pits.length;pi++){ if(!jumped.has(pi) && !bike.airborne && wx>=pits[pi].x0-12 && wx<pits[pi].x1){ jump(); jumped.add(pi); } }
+    updatePhysics(1/60); t+=1/60; if(scroll+CX()>=GOAL){ ok=true; break; } }
   gameState=gs; gasHeld=false;
   return ok ? t : GOAL/PAR_K;                    // запасной вариант, если ghost не доехал
 }
@@ -255,7 +257,7 @@ function rebuild(){
   parTime = measureParTime();                    // идеальное время этой трассы (ghost, полный газ)
   timeLimit = Math.max(12, Math.round(parTime * TIGHT));  // ТУГОЙ лимит = идеал × TIGHT
   // ПОЛНЫЙ сброс состояния для реального заезда (после ghost-прогона):
-  scroll=0;speed=0;camY=null;bike.init=false;bike.airborne=false;bike.vy=0;parts.length=0;emit=0;wheelie=0;slip=0;forkTravel=0;forkVel=0;flapAng=0;flapVel=0;bounce=0;bounceV=0;bar=0;barV=0;ejected=null;slopeShake=0;tapeBroken=false;prevAng=0;prevAxleY=null;dmgLog.length=0;dmgJump=0;dmgSlope=0;slopeAccum=0;arriveT=-1;nextRamp=0;launchWheelie=0;startMoved=false;prevGroundAng=0;pitEjected=false;
+  scroll=0;speed=0;camY=null;bike.init=false;bike.airborne=false;bike.vy=0;parts.length=0;emit=0;wheelie=0;slip=0;forkTravel=0;forkVel=0;flapAng=0;flapVel=0;bounce=0;bounceV=0;bar=0;barV=0;ejected=null;slopeShake=0;tapeBroken=false;prevAng=0;prevAxleY=null;dmgLog.length=0;dmgJump=0;dmgSlope=0;slopeAccum=0;arriveT=-1;nextRamp=0;launchWheelie=0;startMoved=false;prevGroundAng=0;pitEjected=false;floorScrape=false;pitStall=false;
   loadCargo();                                   // грузим CARGO_MAX свежих баллонов
   rideTime=0; result=null;                       // обнуляем таймер и итог уровня
   hideResult();                                  // на случай ресайза поверх экрана результата
@@ -285,7 +287,7 @@ let rideTime=0;        // секунды активного заезда (тик
 let parTime=0;         // идеальное (минимальное) время этой трассы, сек — из ghost-прогона
 let result=null;       // итог: {state,delivered,intg,time,bonus,score,dmgJump,dmgSlope}
 const PAR_K=380;       // скорость идеального проезда (полный газ, чисто), px/с → эталонное время = GOAL/PAR_K
-const TIGHT=1.2;       // ТУГОЙ таймер: лимит = эталон × TIGHT (1.2 = жёстко, без поблажек; больше = мягче)
+const TIGHT=1.05;      // ТУГОЙ таймер: лимит = эталон × TIGHT. 1.05 → чистый газ доезжает с запасом ~1.2с; скат в яму (медленно) НЕ успевает
 const BONUS_K=12;      // очки бонуса за каждую сэкономленную секунду (остаток времени на финише)
 function setState(s){ gameState=s; }
 function startRide(){ if(gameState==='READY'){ gameState='RIDING'; rideTime=0; } }
@@ -333,6 +335,8 @@ let bar=0, barV=0;               // отдельный подскок гориз
 // ── ВЫЛЕТЕВШИЙ баллон (заход 2): физ. объект, летит/катится по рельефу и исчезает ──
 let ejected=null;                // {x,y,vx,vy,rot,vrot,life} в мировых координатах, либо null
 let pitEjected=false;            // в текущем падении в яму баллон уже выбит (чтобы вылетал ровно один)
+let floorScrape=false;           // лог «ДНО ЯМЫ» уже записан в этом заезде по дну (чтобы не спамить)
+let pitStall=false;              // ЗАГЛОХ: удар о дно ямы срывает тягу — газ не работает, пока игрок не отпустит и снова не нажмёт
 let slopeShake=0;                // интенсивность мелкой дрожи баллонов на опасном спуске (0..1)
 let tSec=0;                      // аккумулятор времени (для независимого дребезга прутьев)
 let prevAng=0;                   // прошлый наклон байка (для рывков рельефа)
@@ -366,6 +370,7 @@ const HALF=48, WR=20;
 const ENG=900, GRAV_ROLL=1300, DRAG=1.5, SPD_MIN=-300, SPD_MAX=760, JUMP_MIN_SPD=70;  // GRAV_ROLL≫ENG → даже умеренный подъём тормозит, не «залетаешь»
 const JUMP_V=560, GRAV=1500, AIR_ANG=-0.16;   // прыжок: импульс вверх, гравитация, наклон в воздухе
 const COYOTE_T=0.13; let coyote=0;             // grace-окно: ещё COYOTE_T сек после отрыва от кромки прыжок срабатывает (как в платформерах)
+const FLOOR_DMG=0.20;                          // урон/сек грузу при езде по ДНУ ямы (камни/стекло): скат вместо прыжка царапает баллоны
 const RAMP_MIN=200, RAMP_K=1.4, RAMP_BASE=280;  // трамплин: порог отрыва; множитель (от скорости) + базовый импульс (фикс., бьёт даже на сниженной скорости)
 const LEVEL_MIN=0.4, LEVEL_LOSS=3.5;          // гашение скорости при выполаживании после крутого спуска (сильнее: не «залетать» в подъём)
 const SLIP_THRESH=0.22, SLIP_GAIN=50, LAUNCH_SPD=220;   // буксование: порог склона ниже, сила больше → видимая борьба в подъём
@@ -394,7 +399,7 @@ function updatePhysics(dt){
 
   const spd0=speed;                              // скорость в начале кадра (для детекта момента старта)
   // ── продольная физика (только на земле) ──
-  const eng = gasHeld && gameState==='RIDING';   // газ работает только во время заезда
+  const eng = gasHeld && gameState==='RIDING' && !pitStall;   // газ работает только во время заезда И если не заглох в яме
   if(!bike.airborne){
     if(eng){
       const lowGear = 1 + 0.9*Math.max(0, 1 - Math.abs(speed)/150); // тяга на низах (1-я передача): сильнее — байк ощутимо борется с подъёмом
@@ -463,6 +468,7 @@ function updatePhysics(dt){
         // Чисто перепрыгнул (полный газ/прыжок) — провала нет, баллон цел. Остальные баллоны в яме НЕ повреждаем.
         if(!pitEjected && (bike.axleY-GY) > 0.30*_pitL.depth && tanks.length>0){
           tanks[topTankIdx()].w=1; pitEjected=true; logEvent('УПАЛ В ЯМУ', Math.round(impact), 1);
+          speed *= 0.20; pitStall=true;            // УДАР О ДНО: тяга срывается до ~20% и глохнет — надо отпустить и снова газовать, чтобы выехать
         }
       } else {
         tanks.forEach((t,i)=>{ t.w=Math.min(1, t.w + kick*(i===tp?1.15:0.9)*t.dm); });
@@ -474,13 +480,20 @@ function updatePhysics(dt){
   } else {
     bike.axleY=groundAxleY;
     bike.ang+=(groundAng-bike.ang)*Math.min(1,18*dt);  // быстрое следование рельефу (как в рабочем старом файле)
+    // ── ДНО ЯМЫ: камни/стекло. Едешь по дну (скатился вместо прыжка) = груз потихоньку царапается. Прыгнул чисто — дна не касаешься, груз цел. ──
+    const _wxF=scroll+cx, _pitF=pits.find(p=> _wxF>p.fx0 && _wxF<p.fx1);
+    if(_pitF && (bike.axleY-GY) > 0.6*_pitF.depth && tanks.length>0){
+      const scr=FLOOR_DMG*dt;
+      tanks.forEach(t=>{ t.w=Math.min(1, t.w + scr*t.dm); });
+      if(!floorScrape){ floorScrape=true; logEvent('ДНО ЯМЫ', 0, scr); }
+    }
   }
   if(!bike.airborne) coyote=COYOTE_T; else coyote=Math.max(0, coyote-dt);  // grace-окно прыжка после отрыва
 
   prevGroundAng = groundAng;                 // для гашения при выполаживании в следующем кадре
   // вылет баллона происходит ТОЛЬКО при приземлении на ДНО ямы (см. блок приземления выше).
   // Здесь — лишь сброс флага, когда выехал из ямы на ровное (готов к следующей яме, если будет).
-  if((bike.axleY-GY) < 0.10*H) pitEjected=false;
+  if((bike.axleY-GY) < 0.10*H){ pitEjected=false; floorScrape=false; }
   const a=bike.ang, axleY=bike.axleY;
   // ── ход задней подвески: пружина-демпфер к статике; толчок при приземлении ──
   forkVel += ((0-forkTravel)*260 - forkVel*16)*dt;
@@ -1520,6 +1533,7 @@ const gas=document.getElementById('gas');
 const TAP_MS=200;
 let pressT=0, pressed=false, speedAtDown=0;
 function down(){ if(pressed)return; pressed=true; gasHeld=true; pressT=performance.now(); speedAtDown=speed; gas.classList.add('pressed');
+  pitStall=false;                                    // новое нажатие газа снимает «заглох» в яме → тяга снова есть
   if(gameState==='READY') startRide();              // первый зажим газа = старт заезда
 }
 function up(){ if(!pressed)return; pressed=false; gasHeld=false; gas.classList.remove('pressed');
