@@ -33,11 +33,12 @@
   #result .rscore b{display:block;margin-top:4px;font-size:var(--fs-num);letter-spacing:2px;color:#ffb64a;font-weight:normal;}
   #result #res-restart{display:inline-flex;align-items:center;gap:12px;padding:6px 10px;color:#ffd68f;
     font-family:inherit;font-weight:bold;letter-spacing:3px;font-size:var(--fs-btn);font-weight:normal;cursor:pointer;background:none;border:none;}
+  #result #res-restart .ptxt{display:inline-block;width:200px;text-align:center;}
   #result #res-restart .brk{font-size:32px;font-weight:400;line-height:1;color:#ffb64a;}
   #result button:active{transform:scale(0.96);background:#ffb05a;animation:none;}
   @keyframes pulseBtn{
-    0%,100%{transform:scale(1);}
-    50%    {transform:scale(1.025);}
+    0%,100%{transform:scale(1);opacity:0.78;}
+    50%    {transform:scale(1.09);opacity:1;}
   }
   @keyframes resultIn{ from{opacity:0;} to{opacity:1;} }
   @keyframes btnIn{ from{opacity:0;} to{opacity:1;} }
@@ -63,6 +64,8 @@
   .crt .h.center{font-size:var(--fs-h);word-spacing:-0.5ch;line-height:1.25;}
   .crt .center{text-align:center;}
   .crt .li{margin-left:2px;}
+  .crt .obj{padding-left:1.6em;text-indent:-1.6em;}
+  .crt .obj .ok{display:inline-block;width:1.6em;text-indent:0;}
   .crt .pay{margin:9px 0;line-height:1.35;}
   .crt .dim{color:#c98a34;}
   .crt .red{color:#ff5a46;}
@@ -75,7 +78,7 @@
   .crt .sp{height:1.27em;line-height:0;margin:0;}
   .crt .cursor{display:inline-block;width:9px;height:15px;background:#ffb64a;vertical-align:-2px;margin-left:2px;animation:tblink 1s steps(1) infinite;}
   @keyframes tblink{50%{opacity:0;}}
-  .crt #tclose{position:absolute;top:16px;right:16px;z-index:9;width:30px;height:30px;border-radius:6px;border:1px solid #2a2416;background:rgba(20,16,8,0.6);color:#ffb64a;display:flex;align-items:center;justify-content:center;font-size:17px;cursor:pointer;}
+  .crt #tclose{position:absolute;top:16px;right:16px;z-index:9;width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,0.85);background:rgba(20,16,8,0.6);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;}
   .crt .foot{flex:0 0 auto;padding:12px;border-top:1px solid #1c1810;background:rgba(6,8,4,0.6);text-align:center;z-index:7;}
   .crt #taccept{display:inline-flex;align-items:center;gap:12px;padding:6px 10px;color:#ffd68f;font-weight:bold;letter-spacing:3px;font-size:var(--fs-btn);font-weight:normal;cursor:pointer;}
   .crt b{font-weight:normal;}
@@ -92,7 +95,7 @@
   <div id="terminal" class="crt hidden">
     <div class="frame">
       <div class="screw tl"></div><div class="screw tr"></div><div class="screw bl"></div><div class="screw br"></div>
-      <div id="tclose">✕</div>
+      <div id="tclose" style="display:none">✕</div>
       <div class="glass">
         <div class="tbody" id="tbody">
           <div class="sep center">──────────────────────────────</div>
@@ -110,9 +113,14 @@
           <div class="sep">──────────────────────────────</div>
           <div class="h">MISSION OBJECTIVE</div>
           <p class="sp"></p>
-          <p><span class="ok">✓</span> Reach the Finish Flag.</p>
-          <p><span class="ok">✓</span> Deliver at least one sealed cylinder.</p>
-          <p><span class="ok">✓</span> Complete the mission before time expires.</p>
+          <p class="obj"><span class="ok">✓</span>Reach the Finish Flag.</p>
+          <p class="obj"><span class="ok">✓</span>Deliver at least one sealed cylinder.</p>
+          <p class="obj"><span class="ok">✓</span>Complete the mission before time expires.</p>
+          <div class="sep">──────────────────────────────</div>
+          <div class="h">CONTROLS</div>
+          <p class="sp"></p>
+          <div class="pay"><b>HOLD</b> <span class="li2 pw">THROTTLE / ENGINE BRAKE</span></div>
+          <div class="pay"><b>TAP</b> <span class="li2 pw">JUMP OVER PITS</span></div>
           <div class="sep">──────────────────────────────</div>
           <div class="h red">WARNING</div>
           <p class="sp"></p>
@@ -139,7 +147,7 @@
           <p>The best couriers find the balance.<span class="cursor"></span></p>
           <p class="sp"></p>
         </div>
-        <div class="foot"><span id="taccept"><span class="brk">[</span>ACCEPT MISSION<span class="brk">]</span></span></div>
+        <div class="foot"><span id="taccept"><span class="brk">[</span><span id="tacctxt">ACCEPT MISSION</span><span class="brk">]</span></span></div>
       </div>
     </div>
   </div>
@@ -157,7 +165,7 @@
           <div class="rscore">EARNINGS<b id="res-score">0</b></div>
           <p class="sp"></p>
         </div>
-        <div class="foot"><span id="res-restart"><span class="brk">[</span>TRY AGAIN<span class="brk">]</span></span></div>
+        <div class="foot"><span id="res-restart"><span class="brk">[</span><span class="ptxt">TRY AGAIN</span><span class="brk">]</span></span></div>
       </div>
     </div>
   </div>
@@ -296,12 +304,12 @@ function measureParTime(){
   nextRamp=0;startMoved=false;launchWheelie=0;pitEjected=false;floorScrape=false;pitStall=false;coyote=0;ejected=null;
   forkTravel=0;forkVel=0;flapAng=0;flapVel=0;bounce=0;bounceV=0;bar=0;barV=0;wheelie=0;slip=0;slopeShake=0;slopeAccum=0;prevGroundAng=0;prevAxleY=null;
   loadCargo();
-  const gs=gameState; gameState='RIDING';
+  const gs=gameState; gameState='RIDING'; const lj=learnedJump;
   let t=0, ok=false; const jumped=new Set();        // par считаем по ОПТИМАЛЬНОЙ линии: ghost ПЕРЕПРЫГИВАЕТ ямы (а не падает и глохнет)
   for(let i=0;i<20000;i++){ gasHeld=true; const wx=scroll+CX();
     for(let pi=0;pi<pits.length;pi++){ if(!jumped.has(pi) && !bike.airborne && wx>=pits[pi].x0-12 && wx<pits[pi].x1){ jump(); jumped.add(pi); } }
     updatePhysics(1/60); t+=1/60; if(scroll+CX()>=GOAL){ ok=true; break; } }
-  gameState=gs; gasHeld=false;
+  gameState=gs; gasHeld=false; learnedJump=lj;
   return ok ? t : GOAL/PAR_K;                    // запасной вариант, если ghost не доехал
 }
 function rebuild(){
@@ -344,7 +352,7 @@ const TIGHT=1.10;      // таймер: лимит = эталон × TIGHT. 1.10
 const BONUS_K=0.5;    // бонус $ за каждую сэкономленную секунду (масштаб под base=10$)
 function setState(s){ gameState=s; }
 function startRide(){ if(gameState==='READY'){ gameState='RIDING'; rideTime=0; } }
-function resetRide(){ gameState='READY'; result=null; hideResult(); rebuild(); }
+function resetRide(){ gameState='READY'; result=null; learnedJump=false; hideResult(); rebuild(); }
 // ── подсчёт итога уровня и показ экрана результата ──
 // ЗОННАЯ выплата за один довезённый баллон (base=10$): 🟢🟡 полная, 🟠 плавно до 40%, 🔴 ноль (сюда не заходит)
 function tankPayout(w){
@@ -386,11 +394,24 @@ function showResult(){
     row('time', r.time.toFixed(1)+' s'+(r.bonus>0?'  (+'+r.bonus+'$)':''));
   document.getElementById('res-score').textContent = r.score+'$';
   box.classList.remove('hidden');
+  startBtnType();
 }
-function hideResult(){ const b=document.getElementById('result'); if(b)b.classList.add('hidden'); }
+let btnTypeTimer=null;
+function startBtnType(){
+  const el=document.querySelector('#res-restart .ptxt'); if(!el) return;
+  const full='TRY AGAIN'; clearInterval(btnTypeTimer);
+  let i=0, hold=0, phase='type';
+  btnTypeTimer=setInterval(()=>{
+    if(phase==='type'){ i++; el.textContent=full.slice(0,i); if(i>=full.length){ phase='hold'; hold=0; } }
+    else if(phase==='hold'){ hold++; if(hold>=14){ phase='wait'; hold=0; } }
+    else { hold++; el.textContent=''; if(hold>=5){ phase='type'; i=0; } }
+  },110);
+}
+function hideResult(){ const b=document.getElementById('result'); if(b)b.classList.add('hidden'); clearInterval(btnTypeTimer); }
 
 // ════════ ФИЗИКА (жёсткая база) ════════
 let scroll=0,speed=0,gasHeld=false,wheelAngF=0,wheelAngR=0,slip=0,wheelie=0,spinF=0,spinR=0;
+let learnedJump=false;
 let launchWheelie=0;             // импульс старт-вилли (1 в момент трогания, затухает)
 let startMoved=false;            // байк уже тронулся на этом уровне → старт-вилли больше не появляется
 let prevGroundAng=0;             // угол рельефа в прошлом кадре (для гашения при выполаживании)
@@ -659,7 +680,23 @@ function updatePhysics(dt){
     front:{x:fxd,y:fyd},
     gR:s.gR,gF:s.gF};
 }
-function jump(){ if(bike.init && (!bike.airborne || coyote>0) && bike.vy>-50){ bike.airborne=true; bike.vy=-JUMP_V; coyote=0; } }  // прыжок: с земли ИЛИ в coyote-окне; без двойного
+// онбординг-хинт: пульсирующее "TAP TO JUMP" над байком при подъезде к первой яме (пока игрок ни разу не прыгал)
+function drawJumpHint(p){
+  if(learnedJump || gameState!=='RIDING' || !pits.length) return;
+  const pit=pits[0], wx=scroll+CX();
+  if(wx < pit.x0-W*1.1 || wx > pit.x1) return;       // появляется раньше (за 1.1W до ямы)
+  if(p.cy > terrY(pit.x0)+pit.depth*0.3) return;      // провалился ниже кромки → гасим
+  const fade=Math.min(1,(pit.x0-wx)/(W*0.35));        // мягкий уход в 0 на подлёте к кромке (~последние 0.35W)
+  const pulse=0.55+0.45*Math.sin(performance.now()/180);
+  const sx=CX(), sy=p.cy-168;                          // выше над курьером
+  ctx.save(); ctx.globalAlpha=pulse*Math.max(0,fade); ctx.textAlign='center';
+  ctx.font='700 22px sans-serif'; ctx.fillStyle='#ffd166';
+  ctx.shadowColor='rgba(0,0,0,0.85)'; ctx.shadowBlur=6;
+  ctx.fillText('TAP  TO  JUMP', sx, sy);
+  ctx.font='28px sans-serif'; ctx.fillText('☝', sx, sy+28);
+  ctx.restore(); ctx.textAlign='left';
+}
+function jump(){ if(bike.init && (!bike.airborne || coyote>0) && bike.vy>-50){ bike.airborne=true; bike.vy=-JUMP_V; coyote=0; learnedJump=true; } }  // прыжок: с земли ИЛИ в coyote-окне; без двойного
 
 // ════════ ОТРИСОВКА БАЙКА ════════
 function drawWheel(x,y,ang,spin){
@@ -1450,6 +1487,7 @@ function updateDrawParts(dt){
 let camY=null,last=performance.now();
 function loop(now){
   const dt=Math.min((now-last)/1000,0.033);last=now;
+  if(window.termOpen){ requestAnimationFrame(loop); return; }   // терминал открыт → игра на паузе
   const p=updatePhysics(dt);
   // ── УРОВЕНЬ: таймер тикает в заезде; финиш Б / провал по грузу ──
   if(gameState==='RIDING'){
@@ -1468,6 +1506,7 @@ function loop(now){
   drawGround();
   spawnSlip(p,dt); updateDrawParts(dt);     // камни/пыль под задним колесом
   drawBike(p);
+  drawJumpHint(p);                          // онбординг: "TAP TO JUMP" над первой ямой, пока игрок не прыгнул
   updateDrawEjected(dt);                    // вылетевший баллон (летит/катится по рельефу)
   ctx.restore();
   drawProgressBar();                         // полоса прогресса вверху (старт → ангар)
@@ -1522,8 +1561,8 @@ function drawCargoHUD(){
       ctx.strokeStyle='rgba(150,140,120,0.7)';ctx.lineWidth=1.8;
       ctx.beginPath();ctx.roundRect(x,y,bw,bh,6);ctx.stroke();
       ctx.fillStyle='rgba(150,140,120,0.7)';ctx.fillRect(x+bw/2-2.5,y-5,5,5);
-      ctx.fillStyle='rgba(220,210,195,0.9)';ctx.font='bold 13px sans-serif';
-      ctx.fillText('—', x+bw/2, y+bh+16);
+      ctx.fillStyle='#ffffff';ctx.font='600 14px sans-serif';
+      ctx.fillText('—', x+bw/2, y+bh+20);
       ctx.restore();ctx.textAlign='left';
       continue;
     }
@@ -1553,8 +1592,8 @@ function drawCargoHUD(){
     ctx.strokeStyle=edge; ctx.lineWidth=1.8;
     ctx.beginPath();ctx.roundRect(x,y,bw,bh,6);ctx.stroke();
     ctx.fillStyle=edge; ctx.fillRect(x+bw/2-2.5,y-5,5,5);  // пиптик
-    ctx.fillStyle='rgba(245,230,205,0.95)';ctx.font='bold 13px sans-serif';
-    ctx.fillText(pct+'%', x+bw/2, y+bh+16);
+    ctx.fillStyle='#ffffff';ctx.font='600 14px sans-serif';
+    ctx.fillText(pct+'%', x+bw/2, y+bh+20);
     ctx.restore();ctx.textAlign='left';
   }
 }
@@ -1742,9 +1781,9 @@ function drawTimerClock(){
   // ступица
   ctx.fillStyle='#1a120a'; ctx.beginPath(); ctx.arc(cx,cy,4.4,0,7); ctx.fill();
   ctx.strokeStyle=low?'#ff5a3c':'#fb923c'; ctx.lineWidth=1.8; ctx.beginPath(); ctx.arc(cx,cy,4.4,0,7); ctx.stroke();
-  // статичный лимит времени под циферблатом (целые секунды, не тикает)
-  ctx.fillStyle='rgba(232,213,176,0.9)'; ctx.font='bold 13px sans-serif';
-  ctx.fillText(timeLimit+' s', cx, cy+R+15);
+  // обратный отсчёт под циферблатом: остаток времени, красный на последних секундах
+  ctx.fillStyle='#ffffff'; ctx.font='600 14px sans-serif';
+  ctx.fillText(Math.ceil(tleft)+' s', cx, cy+R+18);
   ctx.restore();
 }
 
@@ -1773,13 +1812,14 @@ resize();requestAnimationFrame(loop);
   const TXT="TRANSMISSION RECEIVED..."; let ti=0;
   (function type(){ if(ti<=TXT.length){ tx.textContent=TXT.slice(0,ti++); setTimeout(type,150); }
     else setTimeout(()=>{ ti=0; type(); },1600); })();
-  const open =()=>{ term.classList.remove('hidden'); tb.scrollTop=0; };
-  const close=()=>{ term.classList.add('hidden'); try{ localStorage.setItem('ld_seen','1'); }catch(e){} };
+  const txt=document.getElementById('tacctxt');
+  const open =()=>{ window.termOpen=true; gasHeld=false; txt.textContent='RESUME RIDE'; term.classList.remove('hidden'); tb.scrollTop=0; };
+  const close=()=>{ window.termOpen=false; last=performance.now(); term.classList.add('hidden'); try{ localStorage.setItem('ld_seen','1'); }catch(e){} };
   document.getElementById('taccept').addEventListener('click',close);
   document.getElementById('tclose').addEventListener('click',close);
   document.getElementById('gasPh').addEventListener('click',open);
   let seen=false; try{ seen=localStorage.getItem('ld_seen')==='1'; }catch(e){}
-  if(!seen) open();
+  if(!seen){ window.termOpen=true; txt.textContent='ACCEPT MISSION'; term.classList.remove('hidden'); tb.scrollTop=0; }
 })();
 </script>
 </body>
