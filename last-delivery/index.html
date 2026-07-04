@@ -36,16 +36,6 @@
   #result #res-restart .ptxt{display:inline-block;width:200px;text-align:center;}
   #result #res-restart .brk{font-size:32px;font-weight:400;line-height:1;color:#ffb64a;}
   #result button:active{transform:scale(0.96);background:#ffb05a;animation:none;}
-  @keyframes pulseBtn{
-    0%,100%{transform:scale(1);opacity:0.78;}
-    50%    {transform:scale(1.09);opacity:1;}
-  }
-  @keyframes resultIn{ from{opacity:0;} to{opacity:1;} }
-  @keyframes btnIn{ from{opacity:0;} to{opacity:1;} }
-  @keyframes cardIn{
-    from{transform:translateY(12px) scale(0.96);}
-    to  {transform:translateY(0) scale(1);}
-  }
   /* ── DISPATCH TERMINAL ── */
   .crt{--fs-h:30px;--fs-sub:20px;--fs-num:36px;--fs-body:14px;--fs-btn:18px;
     position:absolute;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:14px;
@@ -184,7 +174,7 @@ function resize(){
 // ════════ РЕЛЬЕФ ════════
 const STEP=5;
 const SMOOTH_PASSES=5;           // проходов сглаживания рельефа (округляет крутые изломы; 0 = выкл)
-let TERRAIN=[],TW=0,GOAL=6000,seed=12345,TERR_MODE='HILLS';   // 'PLAIN'|'HILLS'|'CLIFFS'
+let TERRAIN=[],TW=0,GOAL=6000,seed=12345;
 let finishSX=0, hangarX=0;       // мировой X начала финишной прямой и левого края ангара
 let ramps=[], nextRamp=0;        // трамплины: список {x(лип),baseX,w,h,slope,type} и индекс следующего
 let pits=[];                     // ямы: список {x0,x1} мировых границ (для отрисовки тьмы/кромок)
@@ -193,7 +183,7 @@ const FINISH_PAUSE=2.5;          // пауза от въезда до плашк
 function rnd(){seed=(seed*9301+49297)%233280;return seed/233280;}
 function rr(a,b){return a+(b-a)*rnd();}
 const ss=t=>t*t*(3-2*t), easeOut=t=>1-Math.pow(1-t,2.2), easeIn=t=>Math.pow(t,2.2);
-function makeFeats(mode){
+function makeFeats(){
   const U=H;let cy=0;const f=[];const cracks=[];
   ramps.length=0;                                    // трамплины пересобираются заново
   pits.length=0;                                     // ямы пересобираются заново
@@ -267,7 +257,7 @@ function makeFeats(mode){
   return {feats:f};
 }
 function buildProfile(){
-  const {feats}=makeFeats(TERR_MODE);
+  const {feats}=makeFeats();
   TERRAIN=[];let fi=0;
   for(let px=0;px<=TW;px+=STEP){
     while(fi<feats.length-1&&px>=feats[fi].sx+feats[fi].w)fi++;
@@ -318,7 +308,7 @@ function rebuild(){
   parTime = measureParTime();                    // идеальное время этой трассы (ghost, полный газ)
   timeLimit = Math.max(12, Math.round(parTime * TIGHT));  // ТУГОЙ лимит = идеал × TIGHT
   // ПОЛНЫЙ сброс состояния для реального заезда (после ghost-прогона):
-  scroll=0;speed=0;camY=null;bike.init=false;bike.airborne=false;bike.vy=0;parts.length=0;emit=0;wheelie=0;slip=0;forkTravel=0;forkVel=0;flapAng=0;flapVel=0;bounce=0;bounceV=0;bar=0;barV=0;ejected=null;slopeShake=0;tapeBroken=false;prevAng=0;prevAxleY=null;dmgLog.length=0;dmgJump=0;dmgSlope=0;slopeAccum=0;arriveT=-1;nextRamp=0;launchWheelie=0;startMoved=false;prevGroundAng=0;pitEjected=false;floorScrape=false;pitStall=false;
+  scroll=0;speed=0;camY=null;bike.init=false;bike.airborne=false;bike.vy=0;parts.length=0;emit=0;wheelie=0;slip=0;forkTravel=0;forkVel=0;flapAng=0;flapVel=0;bounce=0;bounceV=0;bar=0;barV=0;ejected=null;slopeShake=0;tapeBroken=false;prevAng=0;prevAxleY=null;dmgJump=0;dmgSlope=0;slopeAccum=0;arriveT=-1;nextRamp=0;launchWheelie=0;startMoved=false;prevGroundAng=0;pitEjected=false;floorScrape=false;pitStall=false;
   loadCargo();                                   // грузим CARGO_MAX свежих баллонов
   rideTime=0; result=null;                       // обнуляем таймер и итог уровня
   hideResult();                                  // на случай ресайза поверх экрана результата
@@ -352,7 +342,7 @@ const TIGHT=1.10;      // таймер: лимит = эталон × TIGHT. 1.10
 const BONUS_K=0.5;    // бонус $ за каждую сэкономленную секунду (масштаб под base=10$)
 function setState(s){ gameState=s; }
 function startRide(){ if(gameState==='READY'){ gameState='RIDING'; rideTime=0; } }
-function resetRide(){ gameState='READY'; result=null; learnedJump=false; hideResult(); rebuild(); }
+function resetRide(){ gameState='READY'; result=null; learnedJump=false; pitMissed=false; hintOut=1; hideResult(); rebuild(); }
 // ── подсчёт итога уровня и показ экрана результата ──
 // ЗОННАЯ выплата за один довезённый баллон (base=10$): 🟢🟡 полная, 🟠 плавно до 40%, 🔴 ноль (сюда не заходит)
 function tankPayout(w){
@@ -383,15 +373,15 @@ function showResult(){
   const r=result, box=document.getElementById('result');
   document.getElementById('res-ttl').textContent = r.state==='DELIVERED'?'DELIVERED':'FAILED';
   box.classList.remove('win','lose'); box.classList.add(r.state==='DELIVERED'?'win':'lose');
-  const row=(k,v)=>`<div class="row"><span>${k}</span><b>${v}</b></div>`;
+  const row=(k,v)=>`<div class="row"><span>${k}:</span><b>${v}</b></div>`;
   document.getElementById('res-stats').innerHTML=
-    row('delivered', r.delivered+' / '+CARGO_MAX)+
-    row('condition', Math.round(r.intg*100)+'%')+
-    row('damage: jumps', r.dmgJump+'%')+
-    row('damage: descents', r.dmgSlope+'%')+
-    (r.state==='DELIVERED'? row('cargo', r.cargoPts+'$') : '')+
-    (r.perfectBonus>0? row('perfect bonus', '+'+r.perfectBonus+'$') : '')+
-    row('time', r.time.toFixed(1)+' s'+(r.bonus>0?'  (+'+r.bonus+'$)':''));
+    row('Delivered', r.delivered+' / '+CARGO_MAX)+
+    row('Condition', Math.round(r.intg*100)+'%')+
+    row('Damage — Jumps', r.dmgJump+'%')+
+    row('Damage — Descents', r.dmgSlope+'%')+
+    (r.state==='DELIVERED'? row('Cargo', r.cargoPts+'$') : '')+
+    (r.perfectBonus>0? row('Perfect Bonus', '+'+r.perfectBonus+'$') : '')+
+    row('Time', r.time.toFixed(1)+' s'+(r.bonus>0?'  (+'+r.bonus+'$)':''));
   document.getElementById('res-score').textContent = r.score+'$';
   box.classList.remove('hidden');
   startBtnType();
@@ -411,7 +401,7 @@ function hideResult(){ const b=document.getElementById('result'); if(b)b.classLi
 
 // ════════ ФИЗИКА (жёсткая база) ════════
 let scroll=0,speed=0,gasHeld=false,wheelAngF=0,wheelAngR=0,slip=0,wheelie=0,spinF=0,spinR=0;
-let learnedJump=false;
+let learnedJump=false; let pitMissed=false; let hintOut=1;
 let launchWheelie=0;             // импульс старт-вилли (1 в момент трогания, затухает)
 let startMoved=false;            // байк уже тронулся на этом уровне → старт-вилли больше не появляется
 let prevGroundAng=0;             // угол рельефа в прошлом кадре (для гашения при выполаживании)
@@ -429,10 +419,8 @@ let tSec=0;                      // аккумулятор времени (дл�
 let prevAng=0;                   // прошлый наклон байка (для рывков рельефа)
 let prevAxleY=null;              // прошлая высота оси (для скорости снижения на земле)
 // ── ЛОГ УРОНА (отладка): последние события + суммы по источникам ──
-const dmgLog=[];                 // [{type,val,pct}] последние события
 let dmgJump=0, dmgSlope=0;       // суммарный урон: приземления / спуски (в долях)
 let slopeAccum=0;                // накопитель урона текущего спуска (для записи одним событием)
-function logEvent(type,val,pct){ dmgLog.push({type,val,pct}); if(dmgLog.length>5)dmgLog.shift(); }
 const CAGE_DX=-10;  // сдвиг клетки влево (чтобы не налазила на курьера)
 // v2: баллоны СТОЯТ вертикально; [x, y_основания, базовый_наклон] — каждый накренён по-своему
 const CARGO_POS={
@@ -553,12 +541,12 @@ function updatePhysics(dt){
         // В ЯМЕ: если БАЙК завалился в яму (сел заметно ниже кромки, а не перепрыгнул чисто) — вылетает ровно ОДИН баллон.
         // Чисто перепрыгнул (полный газ/прыжок) — провала нет, баллон цел. Остальные баллоны в яме НЕ повреждаем.
         if(!pitEjected && (bike.axleY-GY) > 0.30*_pitL.depth && tanks.length>0){
-          tanks[topTankIdx()].w=1; pitEjected=true; logEvent('УПАЛ В ЯМУ', Math.round(impact), 1);
+          tanks[topTankIdx()].w=1; pitEjected=true;
           speed *= 0.20; pitStall=true;            // УДАР О ДНО: тяга срывается до ~20% и глохнет — надо отпустить и снова газовать, чтобы выехать
         }
       } else {
         tanks.forEach((t,i)=>{ t.w=Math.min(1, t.w + kick*(i===tp?1.15:0.9)*t.dm); });
-        if(kick>0.0005){ dmgJump+=kick; logEvent('ПРЫЖОК', Math.round(impact), kick); }
+        if(kick>0.0005){ dmgJump+=kick; }
       }
       slopeAccum=0;                                         // спуск завершился приземлением
       rHopV = Math.min(90, impact*0.13); rHopDelay = 0.12;  // подскок курьера
@@ -571,7 +559,7 @@ function updatePhysics(dt){
     if(_pitF && (bike.axleY-GY) > 0.6*_pitF.depth && tanks.length>0){
       const scr=FLOOR_DMG*dt;
       tanks.forEach(t=>{ t.w=Math.min(1, t.w + scr*t.dm); });
-      if(!floorScrape){ floorScrape=true; logEvent('ДНО ЯМЫ', 0, scr); }
+      if(!floorScrape){ floorScrape=true; }
     }
   }
   if(!bike.airborne) coyote=COYOTE_T; else coyote=Math.max(0, coyote-dt);  // grace-окно прыжка после отрыва
@@ -620,7 +608,7 @@ function updatePhysics(dt){
       rough += (bike.ang-TH)*spd*spd*0.60*dt; slopeAccum+=rough;   // урон спуска ∝ скорость² → быстро вниз бьёт груз, аккуратно = целее
       slopeShake=Math.min(1, slopeShake + dt*6);             // флаг: груз трясёт на опасном спуске
     } else if(slopeAccum>0.0005){                            // спуск кончился → записать одним событием
-      dmgSlope+=slopeAccum; logEvent('СПУСК', null, slopeAccum); slopeAccum=0;
+      dmgSlope+=slopeAccum; slopeAccum=0;
     }
   }
   prevAxleY=bike.axleY;
@@ -682,13 +670,17 @@ function updatePhysics(dt){
 }
 // онбординг-хинт: пульсирующее "TAP TO JUMP" над байком при подъезде к первой яме (пока игрок ни разу не прыгал)
 function drawJumpHint(p){
-  if(learnedJump || gameState!=='RIDING' || !pits.length) return;
+  if(gameState!=='RIDING' || !pits.length) return;
   const pit=pits[0], wx=scroll+CX();
-  if(wx < pit.x0-W*1.1 || wx > pit.x1) return;       // появляется раньше (за 1.1W до ямы)
-  if(p.cy > terrY(pit.x0)+pit.depth*0.3) return;      // провалился ниже кромки → гасим
-  const fade=Math.min(1,(pit.x0-wx)/(W*0.35));        // мягкий уход в 0 на подлёте к кромке (~последние 0.35W)
+  if(learnedJump){ hintOut=Math.max(0,hintOut-0.024); if(hintOut<=0) return; }  // плавное затухание после тапа (~0.7с)
+  else {
+    if(wx < pit.x0-W*1.1 || wx > pit.x1) return;
+    if(p.cy > terrY(pit.x0)+pit.depth*0.3){ pitMissed=true; }
+    if(pitMissed) return;
+  }
+  const fade=learnedJump? hintOut : Math.min(1,(pit.x0-wx)/(W*1.5));
   const pulse=0.55+0.45*Math.sin(performance.now()/180);
-  const sx=CX(), sy=p.cy-168;                          // выше над курьером
+  const sx=CX(), sy=H*0.25;
   ctx.save(); ctx.globalAlpha=pulse*Math.max(0,fade); ctx.textAlign='center';
   ctx.font='700 22px sans-serif'; ctx.fillStyle='#ffd166';
   ctx.shadowColor='rgba(0,0,0,0.85)'; ctx.shadowBlur=6;
@@ -1506,9 +1498,9 @@ function loop(now){
   drawGround();
   spawnSlip(p,dt); updateDrawParts(dt);     // камни/пыль под задним колесом
   drawBike(p);
-  drawJumpHint(p);                          // онбординг: "TAP TO JUMP" над первой ямой, пока игрок не прыгнул
   updateDrawEjected(dt);                    // вылетевший баллон (летит/катится по рельефу)
   ctx.restore();
+  drawJumpHint(p);                          // хинт вне translate → статичный экранный Y
   drawProgressBar();                         // полоса прогресса вверху (старт → ангар)
   drawCargoHUD();                            // индикатор баллонов в левом верхнем углу
   drawTimerClock();                          // аналоговый таймер (справа вверху)
