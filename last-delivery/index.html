@@ -22,30 +22,18 @@
     box-shadow:0 4px 22px rgba(0,0,0,0.55);transition:.07s;}
   #gas.pressed{background:rgba(251,146,60,0.25);border-color:rgba(255,210,120,1);
     box-shadow:0 0 30px rgba(251,146,60,0.55);transform:scale(0.95);}
-  /* ── экран результата уровня ── */
-  #result{position:absolute;inset:0;z-index:20;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:26px;pointer-events:auto;}
-  #result::before{content:"";position:absolute;inset:0;z-index:-1;
-    background:rgba(8,5,3,0.42);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
-    animation:resultIn 0.55s ease both;}
-  #result.hidden{display:none;}
-  #result .card{width:min(86vw,360px);background:rgba(20,14,9,0.92);
-    border:1px solid rgba(251,146,60,0.35);border-radius:18px;padding:26px 26px 22px;
-    box-shadow:0 14px 60px rgba(0,0,0,0.65);text-align:center;
-    animation:cardIn 0.5s cubic-bezier(.2,.8,.2,1) both;}
-  #result .ttl{font-size:26px;letter-spacing:2px;font-weight:bold;margin-bottom:16px;}
-  #result.win  .ttl{color:#7fd66a;}
-  #result.lose .ttl{color:#ff6a5a;}
-  #result .row{display:flex;justify-content:space-between;font-size:14px;letter-spacing:.5px;
-    padding:6px 2px;color:rgba(232,213,176,0.82);border-bottom:1px solid rgba(255,255,255,0.05);}
-  #result .row b{color:#fb923c;font-weight:bold;}
-  #result .score{margin:16px 0 2px;font-size:15px;letter-spacing:1px;color:rgba(232,213,176,0.7);}
-  #result .score b{font-size:34px;color:#ffd9a0;display:block;margin-top:2px;letter-spacing:2px;}
-  /* пульсирующая кнопка по центру экрана */
-  #result button{padding:17px 46px;font-size:17px;letter-spacing:2px;font-weight:bold;
-    font-family:inherit;color:#1a120a;background:#fb923c;border:none;border-radius:13px;
-    cursor:pointer;-webkit-tap-highlight-color:transparent;
-    animation:pulseBtn 1.25s ease-in-out infinite, btnIn 0.5s ease both;}
+  /* ── экран результата (в стиле терминала) ── */
+  #result{z-index:31;}
+  #result.win  #res-ttl{color:#7de08a;}
+  #result.lose #res-ttl{color:#ff5a46;}
+  #result .row{display:flex;justify-content:space-between;gap:12px;color:#ffb64a;font-size:var(--fs-body);
+    letter-spacing:.4px;padding:5px 0;}
+  #result .row b{color:#ffb64a;font-weight:normal;}
+  #result .rscore{margin:8px 0 2px;color:#c98a34;font-size:14px;letter-spacing:1px;text-align:center;}
+  #result .rscore b{display:block;margin-top:4px;font-size:var(--fs-num);letter-spacing:2px;color:#ffb64a;font-weight:normal;}
+  #result #res-restart{display:inline-flex;align-items:center;gap:12px;padding:6px 10px;color:#ffd68f;
+    font-family:inherit;font-weight:bold;letter-spacing:3px;font-size:var(--fs-btn);font-weight:normal;cursor:pointer;background:none;border:none;}
+  #result #res-restart .brk{font-size:32px;font-weight:400;line-height:1;color:#ffb64a;}
   #result button:active{transform:scale(0.96);background:#ffb05a;animation:none;}
   @keyframes pulseBtn{
     0%,100%{transform:scale(1);}
@@ -58,35 +46,41 @@
     to  {transform:translateY(0) scale(1);}
   }
   /* ── DISPATCH TERMINAL ── */
-  #terminal{position:absolute;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:14px;
+  .crt{--fs-h:30px;--fs-sub:20px;--fs-num:36px;--fs-body:14px;--fs-btn:18px;
+    position:absolute;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;padding:14px;
     background:rgba(8,5,3,0.42);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);font-family:ui-monospace,"Courier New",monospace;}
-  #terminal.hidden{display:none;}
-  #terminal .frame{position:relative;width:100%;max-width:540px;height:90vh;height:90dvh;background:rgba(8,10,6,0.94);
+  .crt.hidden{display:none;}
+  .crt .frame{position:relative;width:100%;max-width:540px;height:90vh;height:90dvh;background:rgba(8,10,6,0.94);
     border:2px solid #2a2416;border-radius:10px;box-shadow:0 0 0 4px #14120b,0 20px 60px rgba(0,0,0,0.7),inset 0 0 60px rgba(255,150,40,0.06);overflow:hidden;}
-  #terminal .screw{position:absolute;width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#4a4230,#191509);box-shadow:inset 0 0 2px #000;}
-  #terminal .screw.tl{top:8px;left:8px;}#terminal .screw.tr{top:8px;right:8px;}#terminal .screw.bl{bottom:8px;left:8px;}#terminal .screw.br{bottom:8px;right:8px;}
-  #terminal .glass{position:absolute;inset:12px;border:1px solid #1c1810;border-radius:6px;overflow:hidden;background:#080a06;display:flex;flex-direction:column;}
-  #terminal .glass::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:5;background:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0px,rgba(0,0,0,0) 2px,rgba(0,0,0,0.16) 3px);}
-  #terminal .glass::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:6;box-shadow:inset 0 0 90px rgba(0,0,0,0.7);background:radial-gradient(130% 100% at 50% 50%,rgba(255,180,70,0.04),transparent 60%);}
-  #terminal .tbody{flex:1;overflow-y:auto;padding:16px 18px 8px;color:#ffb64a;font-size:13.5px;line-height:1.9;letter-spacing:0.4px;-webkit-overflow-scrolling:touch;}
-  #terminal .sep{color:#c98a34;white-space:nowrap;overflow:hidden;margin:10px 0;opacity:0.8;}
-  #terminal .h{color:#ffd68f;font-weight:bold;letter-spacing:2px;}
-  #terminal .center{text-align:center;}
-  #terminal .li{margin-left:2px;}
-  #terminal .pay{margin:9px 0;line-height:1.35;}
-  #terminal .dim{color:#c98a34;}
-  #terminal .red{color:#ff5a46;}
-  #terminal .ok{color:#7de08a;}
-  #terminal .li2{display:block;margin-top:1px;color:#ffb64a;opacity:0.9;}
-  #terminal .pc{color:#fff;font-weight:bold;}
-  #terminal .tline{min-height:1.5em;}
-  #terminal .sp{height:1.27em;line-height:0;margin:0;}
-  #terminal .cursor{display:inline-block;width:9px;height:15px;background:#ffb64a;vertical-align:-2px;margin-left:2px;animation:tblink 1s steps(1) infinite;}
+  .crt .screw{position:absolute;width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#4a4230,#191509);box-shadow:inset 0 0 2px #000;}
+  .crt .screw.tl{top:8px;left:8px;}.crt .screw.tr{top:8px;right:8px;}.crt .screw.bl{bottom:8px;left:8px;}.crt .screw.br{bottom:8px;right:8px;}
+  .crt .glass{position:absolute;inset:12px;border:1px solid #1c1810;border-radius:6px;overflow:hidden;background:#080a06;display:flex;flex-direction:column;}
+  .crt .glass::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:5;background:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0px,rgba(0,0,0,0) 2px,rgba(0,0,0,0.16) 3px);}
+  .crt .glass::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:6;box-shadow:inset 0 0 90px rgba(0,0,0,0.7);background:radial-gradient(130% 100% at 50% 50%,rgba(255,180,70,0.04),transparent 60%);}
+  .crt .tbody{flex:1;overflow-y:auto;padding:16px 18px 8px;color:#ffb64a;font-size:var(--fs-body);line-height:1.9;letter-spacing:0.4px;-webkit-overflow-scrolling:touch;}
+  .crt .sep{color:#c98a34;white-space:nowrap;overflow:hidden;margin:10px 0;opacity:0.8;}
+  .crt .h{color:#ffb64a;font-weight:normal;letter-spacing:0.5px;font-size:var(--fs-sub);}
+  .crt .h.center{font-size:var(--fs-h);word-spacing:-0.5ch;line-height:1.25;}
+  .crt .center{text-align:center;}
+  .crt .li{margin-left:2px;}
+  .crt .pay{margin:9px 0;line-height:1.35;}
+  .crt .dim{color:#c98a34;}
+  .crt .red{color:#ff5a46;}
+  .crt .ok{color:#7de08a;}
+  .crt .li2{display:block;margin-top:1px;color:#ffb64a;opacity:0.9;}
+  .crt .pc{color:#ffb64a;font-weight:normal;}
+  .crt .pw{color:#f5f0e6 !important;}
+  .crt .li2.ind{margin-left:1.3em;}
+  .crt .tline{min-height:1.9em;}
+  .crt .sp{height:1.27em;line-height:0;margin:0;}
+  .crt .cursor{display:inline-block;width:9px;height:15px;background:#ffb64a;vertical-align:-2px;margin-left:2px;animation:tblink 1s steps(1) infinite;}
   @keyframes tblink{50%{opacity:0;}}
-  #terminal #tclose{position:absolute;top:16px;right:16px;z-index:9;width:30px;height:30px;border-radius:6px;border:1px solid #2a2416;background:rgba(20,16,8,0.6);color:#ffb64a;display:flex;align-items:center;justify-content:center;font-size:17px;cursor:pointer;}
-  #terminal .foot{flex:0 0 auto;padding:12px;border-top:1px solid #1c1810;background:rgba(6,8,4,0.6);text-align:center;z-index:7;}
-  #terminal #taccept{display:inline-flex;align-items:center;gap:12px;padding:6px 10px;color:#ffd68f;font-weight:bold;letter-spacing:3px;font-size:15px;cursor:pointer;}
-  #terminal #taccept .brk{font-size:32px;font-weight:400;line-height:1;color:#ffb64a;}
+  .crt #tclose{position:absolute;top:16px;right:16px;z-index:9;width:30px;height:30px;border-radius:6px;border:1px solid #2a2416;background:rgba(20,16,8,0.6);color:#ffb64a;display:flex;align-items:center;justify-content:center;font-size:17px;cursor:pointer;}
+  .crt .foot{flex:0 0 auto;padding:12px;border-top:1px solid #1c1810;background:rgba(6,8,4,0.6);text-align:center;z-index:7;}
+  .crt #taccept{display:inline-flex;align-items:center;gap:12px;padding:6px 10px;color:#ffd68f;font-weight:bold;letter-spacing:3px;font-size:var(--fs-btn);font-weight:normal;cursor:pointer;}
+  .crt b{font-weight:normal;}
+  .crt .tbody, .crt .pc, .crt .li2, .crt .pay b, .crt p{font-size:var(--fs-body);font-weight:normal;color:#ffb64a;}
+  .crt #taccept .brk{font-size:32px;font-weight:400;line-height:1;color:#ffb64a;}
 </style>
 </head>
 <body>
@@ -95,7 +89,7 @@
   <div id="hud"></div>
   <div id="gas">GAS</div>
   <div id="gasPh">?</div>
-  <div id="terminal" class="hidden">
+  <div id="terminal" class="crt hidden">
     <div class="frame">
       <div class="screw tl"></div><div class="screw tr"></div><div class="screw bl"></div><div class="screw br"></div>
       <div id="tclose">✕</div>
@@ -125,14 +119,14 @@
           <p>Cargo damage may occur from:</p>
           <p class="li">• Descents steeper than 48°</p>
           <p class="li">• Hard landings</p>
-          <p class="li">• Falling into pits <span class="dim">(Cylinder Lost)</span></p>
+          <p class="li">• Falling into pits<span class="li2 dim ind">(Cylinder Lost)</span></p>
           <div class="sep">──────────────────────────────</div>
           <div class="h">PAYMENT PROTOCOL</div>
           <p class="sp"></p>
-          <div class="pay"><b>&gt;&gt; OK</b> <span class="pc">0–20%</span><span class="li2">Full Payment + Bonus</span></div>
-          <div class="pay"><b>&gt;&gt; MINOR</b> <span class="pc">21–46%</span><span class="li2">Full Payment</span></div>
-          <div class="pay"><b>!! DAMAGED</b> <span class="pc">47–71%</span><span class="li2">Payment drops fast</span></div>
-          <div class="pay"><b>XX CRITICAL</b> <span class="pc">72%+</span><span class="li2">No Payment</span></div>
+          <div class="pay"><b>OK</b> <span class="pc">0–20%</span><span class="li2 pw">FULL PAYMENT + BONUS</span></div>
+          <div class="pay"><b>MINOR</b> <span class="pc">21–46%</span><span class="li2 pw">FULL PAYMENT</span></div>
+          <div class="pay"><b>DAMAGED</b> <span class="pc">47–71%</span><span class="li2 pw">PAYMENT DROPS FAST</span></div>
+          <div class="pay"><b>CRITICAL</b> <span class="pc">72%+</span><span class="li2 pw">NO PAYMENT</span></div>
           <div class="sep">──────────────────────────────</div>
           <div class="h">REMEMBER</div>
           <p class="sp"></p>
@@ -143,20 +137,29 @@
           <p class="red">CARGO LOST</p>
           <p class="sp"></p>
           <p>The best couriers find the balance.<span class="cursor"></span></p>
-          <div class="sep center">──────────────────────────────</div>
           <p class="sp"></p>
         </div>
         <div class="foot"><span id="taccept"><span class="brk">[</span>ACCEPT MISSION<span class="brk">]</span></span></div>
       </div>
     </div>
   </div>
-  <div id="result" class="hidden">
-    <div class="card">
-      <div class="ttl" id="res-ttl"></div>
-      <div id="res-stats"></div>
-      <div class="score">EARNINGS<b id="res-score">0</b></div>
+  <div id="result" class="crt hidden">
+    <div class="frame">
+      <div class="screw tl"></div><div class="screw tr"></div><div class="screw bl"></div><div class="screw br"></div>
+      <div class="glass">
+        <div class="tbody">
+          <div class="sep center">──────────────────────────────</div>
+          <div class="h center" id="res-ttl"></div>
+          <div class="sep center">──────────────────────────────</div>
+          <p class="sp"></p>
+          <div id="res-stats"></div>
+          <div class="sep">──────────────────────────────</div>
+          <div class="rscore">EARNINGS<b id="res-score">0</b></div>
+          <p class="sp"></p>
+        </div>
+        <div class="foot"><span id="res-restart"><span class="brk">[</span>TRY AGAIN<span class="brk">]</span></span></div>
+      </div>
     </div>
-    <button id="res-restart">TRY AGAIN</button>
   </div>
 </div>
 
