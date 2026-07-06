@@ -12,10 +12,13 @@
   canvas{display:block;width:100%;height:100%;}
   #hud{position:absolute;top:0;left:0;right:0;padding:10px 12px;
     display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;pointer-events:none;z-index:10;}
-  #gasPh{position:absolute;left:16px;bottom:98px;z-index:10;width:80px;height:80px;border-radius:50%;
+  #gasPh{position:absolute;left:16px;bottom:70px;z-index:10;width:80px;height:80px;border-radius:50%;
+    background:transparent;border:none;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;}
+  #gasPh::before{content:'?';width:58px;height:58px;border-radius:50%;
     background:rgba(255,255,255,0.06);border:2px solid rgba(255,255,255,0.28);backdrop-filter:blur(4px);
-    display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.7);font:bold 30px sans-serif;cursor:pointer;user-select:none;}
-  #gas{position:absolute;right:16px;bottom:98px;z-index:10;width:80px;height:80px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.7);font:bold 24px sans-serif;}
+  #gas{position:absolute;right:16px;bottom:70px;z-index:10;width:80px;height:80px;border-radius:50%;
     background:rgba(25,18,10,0.6);border:2px solid rgba(255,255,255,0.9);backdrop-filter:blur(8px);
     display:flex;align-items:center;justify-content:center;font-size:12px;letter-spacing:2px;
     color:rgba(255,255,255,0.85);cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;
@@ -81,7 +84,7 @@
   <canvas id="cv"></canvas>
   <div id="hud"></div>
   <div id="gas">GAS</div>
-  <div id="gasPh">?</div>
+  <div id="gasPh"></div>
   <div id="terminal" class="crt hidden">
     <div class="frame">
       <div class="screw tl"></div><div class="screw tr"></div><div class="screw bl"></div><div class="screw br"></div>
@@ -294,12 +297,14 @@ function measureParTime(){
   nextRamp=0;startMoved=false;launchWheelie=0;pitEjected=false;floorScrape=false;pitStall=false;coyote=0;ejected=null;
   forkTravel=0;forkVel=0;flapAng=0;flapVel=0;bounce=0;bounceV=0;bar=0;barV=0;wheelie=0;slip=0;slopeShake=0;slopeAccum=0;prevGroundAng=0;prevAxleY=null;
   loadCargo();
-  const gs=gameState; gameState='RIDING'; const lj=learnedJump;
-  let t=0, ok=false; const jumped=new Set();        // par считаем по ОПТИМАЛЬНОЙ линии: ghost ПЕРЕПРЫГИВАЕТ ямы (а не падает и глохнет)
-  for(let i=0;i<20000;i++){ gasHeld=true; const wx=scroll+CX();
+  const gs=gameState; gameState='RIDING'; const lj=learnedJump; const h0=engHeat, oh0=engOverheat;
+  let t=0, ok=false, ghostGas=true; const jumped=new Set();  // par: призрак сбрасывает газ по нагреву (как игрок по temp-бару), ямы перепрыгивает
+  for(let i=0;i<20000;i++){ const wx=scroll+CX();
+    if(engHeat>=0.82) ghostGas=false; else if(engHeat<=HEAT_OK) ghostGas=true;  // реактивно: отпускает до перегрева, снова газует остыв
+    gasHeld=ghostGas;
     for(let pi=0;pi<pits.length;pi++){ if(!jumped.has(pi) && !bike.airborne && wx>=pits[pi].x0-12 && wx<pits[pi].x1){ jump(); jumped.add(pi); } }
     updatePhysics(1/60); t+=1/60; if(scroll+CX()>=GOAL){ ok=true; break; } }
-  gameState=gs; gasHeld=false; learnedJump=lj;
+  gameState=gs; gasHeld=false; learnedJump=lj; engHeat=h0; engOverheat=oh0;
   return ok ? t : GOAL/PAR_K;                    // запасной вариант, если ghost не доехал
 }
 function rebuild(){
@@ -308,8 +313,7 @@ function rebuild(){
   parTime = measureParTime();                    // идеальное время этой трассы (ghost, полный газ)
   timeLimit = Math.max(12, Math.round(parTime * TIGHT));  // ТУГОЙ лимит = идеал × TIGHT
   // ПОЛНЫЙ сброс состояния для реального заезда (после ghost-прогона):
-  scroll=0;speed=0;camY=null;bike.init=false;bike.airborne=false;bike.vy=0;parts.length=0;emit=0;wheelie=0;slip=0;forkTravel=0;forkVel=0;flapAng=0;flapVel=0;bounce=0;bounceV=0;bar=0;barV=0;ejected=null;slopeShake=0;tapeBroken=false;prevAng=0;prevAxleY=null;dmgJump=0;dmgSlope=0;slopeAccum=0;arriveT=-1;nextRamp=0;launchWheelie=0;startMoved=false;prevGroundAng=0;pitEjected=false;floorScrape=false;pitStall=false;
-  loadCargo();                                   // грузим CARGO_MAX свежих баллонов
+  scroll=0;speed=0;camY=null;bike.init=false;bike.airborne=false;bike.vy=0;parts.length=0;emit=0;wheelie=0;slip=0;forkTravel=0;forkVel=0;flapAng=0;flapVel=0;bounce=0;bounceV=0;bar=0;barV=0;ejected=null;slopeShake=0;tapeBroken=false;prevAng=0;prevAxleY=null;dmgJump=0;dmgSlope=0;slopeAccum=0;arriveT=-1;nextRamp=0;launchWheelie=0;startMoved=false;prevGroundAng=0;pitEjected=false;floorScrape=false;pitStall=false;engHeat=0;engOverheat=false;rpm=0;smoke.length=0;  loadCargo();                                   // грузим CARGO_MAX свежих баллонов
   rideTime=0; result=null;                       // обнуляем таймер и итог уровня
   hideResult();                                  // на случай ресайза поверх экрана результата
 }
@@ -338,7 +342,7 @@ let rideTime=0;        // секунды активного заезда (тик
 let parTime=0;         // идеальное (минимальное) время этой трассы, сек — из ghost-прогона
 let result=null;       // итог: {state,delivered,intg,time,bonus,score,dmgJump,dmgSlope}
 const PAR_K=380;       // скорость идеального проезда (полный газ, чисто), px/с → эталонное время = GOAL/PAR_K
-const TIGHT=1.10;      // таймер: лимит = эталон × TIGHT. 1.10 → у реального игрока (медленнее ghost) есть запас; скат в яму всё равно рискует не успеть
+const TIGHT=1.20;      // таймер: лимит = эталон × TIGHT. 1.20 → запас на незнание рельефа с первого раза
 const BONUS_K=0.5;    // бонус $ за каждую сэкономленную секунду (масштаб под base=10$)
 function setState(s){ gameState=s; }
 function startRide(){ if(gameState==='READY'){ gameState='RIDING'; rideTime=0; } }
@@ -401,6 +405,7 @@ function hideResult(){ const b=document.getElementById('result'); if(b)b.classLi
 
 // ════════ ФИЗИКА (жёсткая база) ════════
 let scroll=0,speed=0,gasHeld=false,wheelAngF=0,wheelAngR=0,slip=0,wheelie=0,spinF=0,spinR=0;
+let engHeat=0, engOverheat=false, rpm=0;   // rpm 0..1 = нагрев двигателя (engHeat); idle 0
 let learnedJump=false; let pitMissed=false; let hintOut=1;
 let launchWheelie=0;             // импульс старт-вилли (1 в момент трогания, затухает)
 let startMoved=false;            // байк уже тронулся на этом уровне → старт-вилли больше не появляется
@@ -440,6 +445,7 @@ let tapeBroken=false;            // ленточка финиша Б: порва
 const CX=()=>W*0.38;
 const HALF=48, WR=20;
 const ENG=900, GRAV_ROLL=1300, DRAG=1.5, SPD_MIN=-300, SPD_MAX=760, JUMP_MIN_SPD=70;  // GRAV_ROLL≫ENG → даже умеренный подъём тормозит, не «залетаешь»
+const HEAT_UP=0.11, HEAT_DN=0.34, HEAT_OK=0.45, OVERHEAT_CAP=260;  // нагрев ~9с непрерывного газа до перегрева; остывание быстрее; тяга возвращается ниже HEAT_OK
 const JUMP_V=560, GRAV=1500, AIR_ANG=-0.16;   // прыжок: импульс вверх, гравитация, наклон в воздухе
 const COYOTE_T=0.13; let coyote=0;             // grace-окно: ещё COYOTE_T сек после отрыва от кромки прыжок срабатывает (как в платформерах)
 const FLOOR_DMG=0.20;                          // урон/сек грузу при езде по ДНУ ямы (камни/стекло): скат вместо прыжка царапает баллоны
@@ -472,10 +478,28 @@ function updatePhysics(dt){
   const spd0=speed;                              // скорость в начале кадра (для детекта момента старта)
   // ── продольная физика (только на земле) ──
   const eng = gasHeld && gameState==='RIDING' && !pitStall;   // газ работает только во время заезда И если не заглох в яме
+  // ── ПЕРЕГРЕВ: газ копит нагрев, отпускание остужает ──
+  if(eng) engHeat += HEAT_UP*dt; else engHeat -= HEAT_DN*dt;
+  engHeat = Math.max(0, Math.min(1, engHeat));
+  if(engHeat>=1) engOverheat=true;
+  if(engHeat<=HEAT_OK) engOverheat=false;                    // гистерезис
+  // шкала RPM (вар.3): рост зависит от нагрузки — на разгоне быстро, в упор (горка/старт) ×3 медленнее; спад 0.6с
+  const rpmT = (eng && !engOverheat) ? 1 : 0;
+  if(rpm < rpmT){
+    const load = Math.max(0, -Math.sin(groundAng))         // подъём
+               + Math.max(0, 1-Math.abs(speed)/120);        // низкая скорость (упор с места)
+    const upRate = 1/(0.6*(1+3*Math.min(1,load)));          // до ×3 медленнее под нагрузкой
+    const redSlow = rpm>=0.75 ? 0.4 : 1;                     // в красной зоне рост тормозится
+    rpm += (rpmT-rpm)*Math.min(1, dt*upRate*redSlow*2.5);
+  } else {
+    rpm += (rpmT-rpm)*Math.min(1, dt/0.6*2.5);              // спад ~0.6с
+  }
   if(!bike.airborne){
-    if(eng){
+    if(eng && !engOverheat){
       const lowGear = 1 + 0.9*Math.max(0, 1 - Math.abs(speed)/150); // тяга на низах (1-я передача): сильнее — байк ощутимо борется с подъёмом
       speed += ENG*lowGear*dt;                           // двигатель
+    } else if(engOverheat && speed>OVERHEAT_CAP){
+      speed -= speed*2.2*dt;                             // перегрев → тяги нет, байк осаживается
     } else if(groundAng > 0.12 && speed > 30){
       speed -= speed*3.0*dt;                             // ТОРМОЖЕНИЕ ДВИГАТЕЛЕМ на спуске (газ отпущен) → байк осаживается, спуск проходится медленно и целым
     }
@@ -491,7 +515,7 @@ function updatePhysics(dt){
   }
   // ── пробуксовка заднего колеса: старт с низкой скорости + крутой подъём ──
   let slipRate=0;
-  if(!bike.airborne && eng && speed>-5){
+  if(!bike.airborne && eng && !engOverheat && speed>-5){
     const launch=Math.max(0,1-Math.abs(speed)/LAUNCH_SPD);                        // трогание с места / после остановки
     const steep =Math.max(0,(-Math.sin(groundAng)-SLIP_THRESH)/(1-SLIP_THRESH));  // крутой/затяжной подъём
     slipRate=SLIP_GAIN*Math.min(1.5, launch*0.9 + steep);
@@ -674,11 +698,14 @@ function drawJumpHint(p){
   const pit=pits[0], wx=scroll+CX();
   if(learnedJump){ hintOut=Math.max(0,hintOut-0.024); if(hintOut<=0) return; }  // плавное затухание после тапа (~0.7с)
   else {
-    if(wx < pit.x0-W*1.1 || wx > pit.x1) return;
+    if(wx > pit.x1) pitMissed=true;                 // проехал яму (в т.ч. по дну) без прыжка → хинт больше не всплывает
+    if(wx < pit.x0-W*2 || wx > pit.x1) return;
     if(p.cy > terrY(pit.x0)+pit.depth*0.3){ pitMissed=true; }
     if(pitMissed) return;
   }
-  const fade=learnedJump? hintOut : Math.min(1,(pit.x0-wx)/(W*1.5));
+  const fadeIn=Math.min(1,(wx-(pit.x0-W*2))/(W*0.5));         // плавный вход
+  const fadeOut=Math.min(1,(pit.x0-wx)/(W*2.5));              // плавный уход
+  const fade=learnedJump? hintOut : Math.min(fadeIn,fadeOut);
   const pulse=0.55+0.45*Math.sin(performance.now()/180);
   const sx=CX(), sy=H*0.25;
   ctx.save(); ctx.globalAlpha=pulse*Math.max(0,fade); ctx.textAlign='center';
@@ -1039,7 +1066,11 @@ function drawFrame(cx,axleY,a){
   ctx.beginPath();ctx.moveTo(2,-33);ctx.lineTo(8,-6);ctx.stroke();                // средняя стойка
 
   // ── двигатель (одноцилиндровый thumper) ──
-  ctx.fillStyle=RUST.engine;ctx.beginPath();ctx.roundRect(-6,-16,24,18,3);ctx.fill();
+  ctx.save();
+  if(engOverheat){ ctx.translate((Math.random()-0.5)*4,(Math.random()-0.5)*4);
+    ctx.fillStyle='#d83420'; } else ctx.fillStyle=RUST.engine;
+  ctx.beginPath();ctx.roundRect(-6,-16,24,18,3);ctx.fill();
+  ctx.restore();
   ctx.fillStyle=RUST.engineDk;for(let i=0;i<5;i++)ctx.fillRect(0+i*4,-22,2.4,8); // рёбра головки
   ctx.fillStyle=RUST.engineDk;ctx.beginPath();ctx.roundRect(2,-24,12,4,2);ctx.fill();
   ctx.fillStyle=RUST.engineHi;ctx.beginPath();ctx.arc(8,-4,7.5,0,7);ctx.fill();   // картер сцепления
@@ -1205,10 +1236,26 @@ function drawFrame(cx,axleY,a){
 
   ctx.restore();
 }
+const smoke=[];   // частицы дыма перегрева
 function drawBike(p){
+  // ── ПЕРЕГРЕВ фаза 1: серый дым из двигателя (engHeat 0.7+) ──
+  if(engHeat>0.7 && !bike.airborne){
+    if(Math.random() < (engHeat-0.7)/0.3*0.6){
+      smoke.push({x:p.cx+6, y:p.axleY-18, vx:(Math.random()-0.5)*8-6, vy:-24-Math.random()*20, r:3+Math.random()*3, life:1});
+    }
+  }
+  for(let i=smoke.length-1;i>=0;i--){ const s=smoke[i]; s.x+=s.vx*0.016; s.y+=s.vy*0.016; s.vy*=0.98; s.r+=0.4; s.life-=0.012;
+    if(s.life<=0){ smoke.splice(i,1); continue; }
+    ctx.globalAlpha=s.life*0.4; ctx.fillStyle='#7a7268'; ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,7); ctx.fill(); }
+  ctx.globalAlpha=1;
+  // ── фаза 2: тряска при overheat ──
+  let sx=0, sy=0;
+  if(engOverheat){ sx=(Math.random()-0.5)*3; sy=(Math.random()-0.5)*3; }
+  ctx.save(); ctx.translate(sx,sy);
   drawWheel(p.rear.x,p.rear.y,wheelAngR,spinR);
   drawWheel(p.front.x,p.front.y,wheelAngF,spinF);
   drawFrame(p.cx,p.axleY,p.a);
+  ctx.restore();
 }
 
 // ════════ ФОН + ЗЕМЛЯ ════════
@@ -1617,133 +1664,117 @@ function segNumber(val,x2,y,dw,h,gap,col,glow){
   const s=String(val); let x=x2-s.length*(dw+gap)+gap;
   for(const ch of s){ digit(ch,x,y,dw,h,col,glow); x+=dw+gap; }
 }
-const BEZ=[[0.05,0.36],[0.21,0.07],[0.79,0.07],[0.95,0.36],[0.95,0.82],[0.88,0.95],[0.12,0.95],[0.05,0.82]];
-function poly(pts,ox,oy,dw,dh,inset){
-  ctx.beginPath();
-  for(let i=0;i<pts.length;i++){ let fx=pts[i][0], fy=pts[i][1];
-    if(inset){ fx=0.5+(fx-0.5)*inset; fy=0.5+(fy-0.5)*inset; }
-    const X=ox+fx*dw, Y=oy+fy*dh; i?ctx.lineTo(X,Y):ctx.moveTo(X,Y); }
-  ctx.closePath();
-}
-// приборка в прямоугольнике: центр (cx,cy), ширина dw; rev=0..1 (обороты/скорость)
-function drawDash(cx,cy,dw,rev){
-  const dh=dw/1.85, ox=cx-dw/2, oy=cy-dh/2;
+// приборка: cx,cy центр, dw ширина; rev=скорость 0..1, rp=rpm 0..1
+// ── ПРИБОРКА (портирована из ld-dash): корпус + RPM-дуга + скорость + линия + time/km + бензин ──
+const _SEG={'0':'abcdef','1':'bc','2':'abged','3':'abgcd','4':'fgbc','5':'afgcd','6':'afgcde','7':'abc','8':'abcdefg','9':'abcfgd'};
+function _segPoly(cx,cy,len,th,horiz){ const h=th;
+  if(horiz) return [[cx-len/2,cy],[cx-len/2+h*0.6,cy-h/2],[cx+len/2-h*0.6,cy-h/2],[cx+len/2,cy],[cx+len/2-h*0.6,cy+h/2],[cx-len/2+h*0.6,cy+h/2]];
+  return [[cx,cy-len/2],[cx-h/2,cy-len/2+h*0.6],[cx-h/2,cy+len/2-h*0.6],[cx,cy+len/2],[cx+h/2,cy+len/2-h*0.6],[cx+h/2,cy-len/2+h*0.6]]; }
+function _digit(ch,x,y,dw,h,col){ const on=_SEG[ch]||'', th=dw*0.17, pad=th*0.5;
+  const midX=x+dw/2, topY=y+th/2, midY=y+h/2, botY=y+h-th/2, leftX=x+th/2, rightX=x+dw-th/2;
+  const hlen=dw-th*2-pad, vlen=h/2-th*1.5-pad*0.5;
+  const put=(sg,cx,cy,len,hz)=>{ if(on.includes(sg)){ ctx.fillStyle=col; ctx.beginPath();
+    _segPoly(cx,cy,len,th,hz).forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.closePath(); ctx.fill(); } };
+  put('a',midX,topY,hlen,1); put('g',midX,midY,hlen,1); put('d',midX,botY,hlen,1);
+  put('f',leftX,y+h*0.27,vlen,0); put('b',rightX,y+h*0.27,vlen,0);
+  put('e',leftX,y+h*0.73,vlen,0); put('c',rightX,y+h*0.73,vlen,0); }
+
+function drawDash(cx,cy,dw,rp,kmh,timeStr,kmVal){
+  const dh=dw/2.4, ox=cx-dw/2, oy=cy-dh/2;
+  const N=(fx,fy)=>[ox+fx*dw, oy+fy*dh];
+  // уши сквозные
+  const ear=(exf)=>{ const [ex,ey]=N(exf,1.0); const ew=dw*0.115, eh=dh*0.17, r=eh*0.5;
+    ctx.fillStyle='#6b5d4a'; ctx.beginPath(); ctx.roundRect(ex-ew/2,ey-eh*0.1,ew,eh,r); ctx.fill();
+    ctx.save(); ctx.globalCompositeOperation='destination-out'; ctx.beginPath(); ctx.arc(ex,ey+eh*0.45,eh*0.19,0,7); ctx.fill(); ctx.restore(); };
+  ear(0.36); ear(0.64);
+  // корпус
+  const HOUS=[[0.02,0.34],[0.31,0.02],[0.69,0.02],[0.98,0.34],[0.98,0.78],[0.94,0.98],[0.06,0.98],[0.02,0.78]];
+  ctx.beginPath(); HOUS.forEach((p,i)=>{ const [X,Y]=N(p[0],p[1]); i?ctx.lineTo(X,Y):ctx.moveTo(X,Y); });
+  ctx.closePath(); ctx.fillStyle='#2b241d'; ctx.fill();
+  ctx.lineJoin='round'; ctx.strokeStyle='#6b5d4a'; ctx.lineWidth=dw*0.006; ctx.stroke();
+  // дисплей
+  const SCR=[[0.045,0.36],[0.325,0.06],[0.675,0.06],[0.955,0.36],[0.955,0.76],[0.92,0.94],[0.08,0.94],[0.045,0.76]];
+  ctx.beginPath(); SCR.forEach((p,i)=>{ const [X,Y]=N(p[0],p[1]); i?ctx.lineTo(X,Y):ctx.moveTo(X,Y); });
+  ctx.closePath(); ctx.fillStyle='#0d0805'; ctx.fill();
+  ctx.strokeStyle='rgba(251,146,60,0.32)'; ctx.lineWidth=dw*0.005; ctx.stroke();
+  ctx.save(); ctx.beginPath(); SCR.forEach((p,i)=>{ const [X,Y]=N(p[0],p[1]); i?ctx.lineTo(X,Y):ctx.moveTo(X,Y); }); ctx.closePath(); ctx.clip();
+
+  // ── RPM-дуга ──
+  const SW=1520, SH=SW/2.4;
+  const dispX=ox+dw*0.045, dispY=oy+dh*0.06-dh*0.16, dispW=dw*0.91, dispH=dh*0.88;
+  const sc=0.94, AX=140, AY=590;
+  const M=(x,y)=>[dispX+((AX+(x-AX)*sc)/SW)*dispW, dispY+((AY+(y-AY)*sc)/SH)*dispH];
+  const [m0x,m0y]=M(140,590),[c1x,c1y]=M(180,250),[c2x,c2y]=M(640,40),[ex,ey]=M(1325,305);
+  const L=(150/SW)*dispW;
+  const B=(t)=>{ const u=1-t; return [u*u*u*m0x+3*u*u*t*c1x+3*u*t*t*c2x+t*t*t*ex, u*u*u*m0y+3*u*u*t*c1y+3*u*t*t*c2y+t*t*t*ey]; };
+  let prev=B(0), acc=[0]; const seg=400;
+  for(let i=1;i<=seg;i++){ const p=B(i/seg); acc.push(acc[i-1]+Math.hypot(p[0]-prev[0],p[1]-prev[1])); prev=p; }
+  const total=acc[seg];
+  const tByLen=(len)=>{ for(let i=1;i<=seg;i++){ if(acc[i]>=len){ const f=(len-acc[i-1])/(acc[i]-acc[i-1]); return (i-1+f)/seg; } } return 1; };
+  const mn0=(138/SW)*dispW, mn8=(36/SW)*dispW;
+  ctx.lineWidth=dw*0.005;
+  for(let s3=1;s3<36;s3++){ if(s3%4===0) continue; const vv=s3/4; const t=tByLen(total*vv/9); const [x,y]=B(t);
+    const [x2,y2]=B(Math.min(1,t+0.001)),[x1,y1]=B(Math.max(0,t-0.001));
+    const ang=Math.atan2(y2-y1,x2-x1); let nx=-Math.sin(ang), ny=Math.cos(ang);
+    if(vv<=3){ const k=(3-vv)/3*0.6; nx=nx*(1-k)+k; ny=ny*(1-k); const m=Math.hypot(nx,ny); nx/=m; ny/=m; }
+    if(vv>rp*9) continue; const len=mn0+(mn8-mn0)*(vv/9); ctx.strokeStyle=vv>=6.75?'#d9382c':'#e8d5b0';
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+nx*len,y+ny*len); ctx.stroke(); }
+  const tick0=(138/SW)*dispW, tick8=(36/SW)*dispW;
+  ctx.lineWidth=dw*0.008;
+  for(let v=1;v<=9;v++){ const t=tByLen(total*v/9); const [x,y]=B(t);
+    const [x2,y2]=B(Math.min(1,t+0.001)),[x1,y1]=B(Math.max(0,t-0.001));
+    const ang=Math.atan2(y2-y1,x2-x1); let nx=-Math.sin(ang), ny=Math.cos(ang);
+    if(v<=3){ const k=(3-v)/3*0.6; nx=nx*(1-k)+k; ny=ny*(1-k); const m=Math.hypot(nx,ny); nx/=m; ny/=m; }
+    const on=v<=rp*9; const len=on?(tick0+(tick8-tick0)*(v/9)):dw*0.012; ctx.strokeStyle=on?(v>=6.75?'#d9382c':'#e8d5b0'):'rgba(232,213,176,0.55)';
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+nx*len,y+ny*len); ctx.stroke(); }
+  // дуга поверх: белая до 6.75, красная после
+  ctx.lineWidth=dw*0.008; ctx.lineCap='round';
+  const tRed=tByLen(total*6.75/9);
+  ctx.strokeStyle='#e8d5b0'; ctx.beginPath();
+  for(let i=0;i<=200;i++){ const t=tRed*i/200, [x,y]=B(t); i?ctx.lineTo(x,y):ctx.moveTo(x,y); } ctx.stroke();
+  ctx.strokeStyle='#d9382c'; ctx.beginPath();
+  for(let i=0;i<=200;i++){ const t=tRed+(1-tRed)*i/200, [x,y]=B(t); i?ctx.lineTo(x,y):ctx.moveTo(x,y); } ctx.stroke();
+  ctx.strokeStyle='#e8d5b0'; ctx.lineWidth=dw*0.008; ctx.beginPath(); ctx.moveTo(m0x,m0y); ctx.lineTo(m0x+L,m0y); ctx.stroke();
+  const fs=Math.round(dw*0.028); ctx.font='bold '+fs+'px Arial'; ctx.textAlign='center'; ctx.textBaseline='bottom'; ctx.fillStyle='#e8d5b0';
+  for(let v=1;v<=9;v++){ const t=tByLen(total*v/9); const [x,y]=B(t);
+    const [x2,y2]=B(Math.min(1,t+0.001)),[x1,y1]=B(Math.max(0,t-0.001));
+    const ang=Math.atan2(y2-y1,x2-x1); const nx=Math.sin(ang), ny=-Math.cos(ang);
+    ctx.fillText(v, x+nx*fs*0.55, y+ny*fs*0.55); }
+
   const P=(fx,fy)=>[ox+fx*dw, oy+fy*dh];
-  const bg=ctx.createLinearGradient(0,oy,0,oy+dh);
-  bg.addColorStop(0,'#2b241d'); bg.addColorStop(0.5,'#191410'); bg.addColorStop(1,'#0c0906');
-  poly(BEZ,ox,oy,dw,dh,1); ctx.fillStyle=bg; ctx.fill();
-  ctx.lineJoin='round';
-  ctx.strokeStyle='rgba(0,0,0,0.6)'; ctx.lineWidth=dw*0.008; ctx.stroke();
-  ctx.strokeStyle='rgba(255,255,255,0.06)'; ctx.lineWidth=dw*0.003; ctx.stroke();
-  poly(BEZ,ox,oy,dw,dh,0.90); ctx.fillStyle='#0a0704'; ctx.fill();
-  ctx.save(); poly(BEZ,ox,oy,dw,dh,0.90); ctx.clip();
-  const gloss=ctx.createLinearGradient(ox,oy,ox+dw,oy+dh);
-  gloss.addColorStop(0,'rgba(255,255,255,0.05)'); gloss.addColorStop(0.4,'rgba(255,255,255,0)');
-  ctx.fillStyle=gloss; ctx.fillRect(ox,oy,dw,dh);
-  // верхняя красная лента вдоль верхней грани (смещение от формы)
-  const V=[P(0.05,0.36),P(0.21,0.07),P(0.79,0.07),P(0.95,0.36)];
-  const gp=Math.min(dw,dh)*0.11, gpS=Math.min(dw,dh)*0.13;
-  const offEdge=(a,b,off)=>{ const dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy),nx=-dy/L,ny=dx/L;
-    return [[a[0]+nx*off,a[1]+ny*off],[b[0]+nx*off,b[1]+ny*off]]; };
-  const inter=(p1,p2,p3,p4)=>{ const den=(p1[0]-p2[0])*(p3[1]-p4[1])-(p1[1]-p2[1])*(p3[0]-p4[0]);
-    if(Math.abs(den)<1e-6) return p2;
-    const t=((p1[0]-p3[0])*(p3[1]-p4[1])-(p1[1]-p3[1])*(p3[0]-p4[0]))/den;
-    return [p1[0]+t*(p2[0]-p1[0]),p1[1]+t*(p2[1]-p1[1])]; };
-  const lerp=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];
-  const e0=offEdge(V[0],V[1],gpS),e1=offEdge(V[1],V[2],gp),e2=offEdge(V[2],V[3],gpS);
-  const I1=inter(e0[0],e0[1],e1[0],e1[1]),I2=inter(e1[0],e1[1],e2[0],e2[1]);
-  const AP=[lerp(e0[0],I1,0.5),I1,I2,lerp(e2[1],I2,0.5)];
-  const segLen=[],legAng=[]; let total=0;
-  for(let k=0;k<3;k++){ const dx=AP[k+1][0]-AP[k][0], dy=AP[k+1][1]-AP[k][1];
-    const L=Math.hypot(dx,dy); segLen.push(L); legAng.push(Math.atan2(dy,dx)); total+=L; }
-  const Nr=20;
-  for(let i=0;i<Nr;i++){
-    const t=i/(Nr-1); let d=t*total, k=0;
-    while(k<2 && d>segLen[k]){ d-=segLen[k]; k++; }
-    const f=d/segLen[k];
-    const X=AP[k][0]+(AP[k+1][0]-AP[k][0])*f, Y=AP[k][1]+(AP[k+1][1]-AP[k][1])*f, ang=legAng[k];
-    const centerBig=1-Math.abs(t-0.5)*1.4;
-    const sw=dw*(0.024+0.015*Math.max(0,centerBig)), sh=dh*0.036;
-    const lit = rev > (i/Nr)*0.9;
-    ctx.save(); ctx.translate(X,Y); ctx.rotate(ang);
-    ctx.beginPath(); ctx.roundRect(-sw/2,-sh/2,sw,sh,sh*0.35);
-    ctx.fillStyle = lit ? '#f5943a' : 'rgba(120,68,26,0.55)';
-    ctx.fill(); ctx.restore();
-  }
-  // скорость (семисегмент)
-  const kmh=Math.round(rev*118);
-  const dgH=dh*0.28, dgW=dw*0.09, gap=dw*0.017;
-  const [sx,sy]=P(0.60,0.29);
-  segNumber(kmh, sx, sy, dgW, dgH, gap, '#f4f7ff', 0);
-  ctx.fillStyle='rgba(230,238,255,0.9)'; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
-  ctx.font='bold '+Math.round(dh*0.068)+'px ui-monospace,monospace';
-  const [kx,ky]=P(0.605,0.55); ctx.fillText('km/h',kx,ky);
-  // тахо 0..14
-  const tx0=0.24, tx1=0.76, ty=0.82;
-  const revMax=14, revNow=rev*revMax;
-  ctx.textAlign='center'; ctx.shadowBlur=0;
-  for(let v=0; v<=revMax; v++){
-    const t=v/revMax, fx=tx0+(tx1-tx0)*t;
-    const [X,Ybase]=P(fx,ty);
-    const red=v>=10, lit=v<=revNow, hh=dh*0.05;
-    ctx.strokeStyle = lit ? (red?'#e83a3a':'#e6eef8') : (red?'rgba(140,40,40,0.5)':'rgba(120,140,160,0.35)');
-    ctx.lineWidth=dw*0.006;
-    ctx.beginPath(); ctx.moveTo(X,Ybase); ctx.lineTo(X,Ybase-hh); ctx.stroke();
-    if(v<revMax){ for(let m=1;m<4;m++){ const ft=(v+m/4)/revMax, fX=ox+(tx0+(tx1-tx0)*ft)*dw;
-      const litm=(v+m/4)<=revNow, rm=(v+m/4)>=10;
-      ctx.strokeStyle=litm?(rm?'#e83a3a':'rgba(220,235,255,0.72)'):(rm?'rgba(140,40,40,0.4)':'rgba(120,140,160,0.22)');
-      ctx.lineWidth=dw*0.003; ctx.beginPath(); ctx.moveTo(fX,Ybase); ctx.lineTo(fX,Ybase-dh*0.022); ctx.stroke(); } }
-    ctx.fillStyle=red?'rgba(240,90,90,0.95)':'rgba(220,232,248,0.9)';
-    ctx.font='bold '+Math.round(dh*0.048)+'px ui-monospace,monospace';
-    ctx.fillText(v, X, Ybase-hh-dh*0.028);
-  }
-  ctx.fillStyle='rgba(210,224,242,0.7)'; ctx.textAlign='center'; ctx.font='bold '+Math.round(dh*0.046)+'px ui-monospace,monospace';
-  const [rl,rly]=P(0.62,0.905); ctx.fillText('x1000 r/min',rl,rly);
-  // боковые бары (декор)
-  sideBar(P, ox,oy,dw,dh, 'left',  0.72, 'fuel', 'F','E');
-  sideBar(P, ox,oy,dw,dh, 'right', 0.45, 'temp', 'H','L','C');
+  // скорость
+  const sstr=String(kmh), dgW=dw*0.085, dgH=dh*0.34, gap=dw*0.014;
+  const rx=P(0.62,0)[0], ry=P(0,0.72)[1]-dgH; let sx=rx-sstr.length*(dgW+gap)+gap;
+  for(const ch of sstr){ _digit(ch,sx,ry,dgW,dgH,'#ffb64a'); sx+=dgW+gap; }
+  ctx.fillStyle='#e8d5b0'; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+  ctx.font='bold '+Math.round(dw*0.03)+'px Arial'; ctx.fillText('km/h', P(0.635,0)[0], P(0,0.72)[1]);
+  // линия + time/km
+  ctx.strokeStyle='#e8d5b0'; ctx.lineWidth=dw*0.005;
+  const [lx0,ly]=P(0.10,0.80), [lx1]=P(0.90,0.80);
+  ctx.beginPath(); ctx.moveTo(lx0,ly); ctx.lineTo(lx1,ly); ctx.stroke();
+  ctx.fillStyle='#e8d5b0'; ctx.font='bold '+Math.round(dw*0.03)+'px Arial';
+  ctx.textAlign='left';  ctx.fillText(timeStr, ...P(0.11,0.905));
+  ctx.textAlign='right'; ctx.fillText(kmVal, ...P(0.89,0.905));
+  // бензин F-E (декор)
+  const fx0=0.80, fxBar=0.83, n=6, fillN=6, y0=0.46, y1=0.72, rw=dw*0.042, rh=dh*0.024;
+  for(let i=0;i<n;i++){ const [px,py]=P(fxBar, y1-(y1-y0)/(n-1)*i);
+    ctx.fillStyle=i>=n-2?'rgba(232,213,176,0.46)':'#e8d5b0';
+    ctx.beginPath(); ctx.roundRect(px-rw/2,py-rh/2,rw,rh,rh*0.3); ctx.fill(); }
+  ctx.fillStyle='#e8d5b0'; ctx.font='bold '+Math.round(dw*0.026)+'px Arial'; ctx.textBaseline='middle';
+  ctx.textAlign='left'; ctx.fillText('F', ...P(fx0+0.075,y0)); ctx.fillText('E', ...P(fx0+0.075,y1));
+  const [gx,gy]=P(fx0+0.10,(y0+y1)/2); const gs=dh*0.09;
+  ctx.fillStyle='#f2a13a'; ctx.beginPath(); ctx.roundRect(gx-gs*0.35,gy-gs*0.5,gs*0.7,gs,gs*0.12); ctx.fill();
+  ctx.fillStyle='#08090b'; ctx.fillRect(gx-gs*0.22,gy-gs*0.36,gs*0.44,gs*0.28);
+  ctx.strokeStyle='#f2a13a'; ctx.lineWidth=gs*0.1; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(gx+gs*0.35,gy-gs*0.25); ctx.lineTo(gx+gs*0.52,gy-gs*0.12); ctx.lineTo(gx+gs*0.52,gy+gs*0.35); ctx.stroke();
   ctx.restore();
 }
-function sideBar(P,ox,oy,dw,dh,side,fill,kind,topLbl,botLbl,midLbl){
-  const n=7, dir = side==='left'? 1 : -1;
-  const cxf = side==='left'? 0.175 : 0.825;
-  const y0=0.45, y1=0.71, rw=dw*0.038, rh=dh*0.023;
-  for(let i=0;i<n;i++){
-    const t=i/(n-1); const [px,py]=P(cxf, y0+(y1-y0)*t); const lit=t>=(1-fill);
-    ctx.beginPath(); ctx.roundRect(px-rw/2,py-rh/2,rw,rh,rh*0.35);
-    ctx.fillStyle = lit ? 'rgba(236,241,246,0.92)' : 'rgba(120,128,136,0.30)'; ctx.fill();
-  }
-  ctx.shadowBlur=0; ctx.fillStyle='rgba(232,236,242,0.9)'; ctx.textAlign='center';
-  ctx.font='italic bold '+Math.round(dh*0.05)+'px ui-monospace,monospace';
-  const [tx,ty]=P(cxf,y0-0.05); ctx.fillText(topLbl,tx,ty);
-  const [bx,by]=P(cxf,y1+0.055); ctx.fillText(botLbl,bx,by);
-  if(midLbl){ const [mx,my]=P(cxf+dir*0.038,(y0+y1)/2); ctx.fillText(midLbl,mx,my); }
-  if(kind==='fuel'){ drawFuelIcon(...P(cxf+dir*0.055,y0+0.05), dh*0.066); }
-  else            { drawTempIcon(...P(cxf+dir*0.055,y0+0.02), dh*0.075); }
-}
-function drawFuelIcon(x,y,s){
-  ctx.save(); ctx.fillStyle='#e8b83a'; ctx.strokeStyle='#e8b83a'; ctx.lineJoin='round';
-  ctx.beginPath(); ctx.roundRect(x-s*0.42,y-s*0.55,s*0.6,s*1.1,s*0.12); ctx.fill();
-  ctx.fillStyle='#1a1206'; ctx.fillRect(x-s*0.30,y-s*0.42,s*0.36,s*0.28);
-  ctx.strokeStyle='#e8b83a'; ctx.lineWidth=s*0.12; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(x+s*0.18,y+s*0.1); ctx.lineTo(x+s*0.42,y+s*0.1);
-                   ctx.lineTo(x+s*0.42,y-s*0.25); ctx.stroke();
-  ctx.restore();
-}
-function drawTempIcon(x,y,s){
-  ctx.save(); ctx.strokeStyle='#e0463c'; ctx.fillStyle='#e0463c'; ctx.lineCap='round';
-  ctx.lineWidth=s*0.16;
-  ctx.beginPath(); ctx.moveTo(x,y-s*0.45); ctx.lineTo(x,y+s*0.2); ctx.stroke();
-  ctx.beginPath(); ctx.arc(x,y+s*0.32,s*0.24,0,7); ctx.fill();
-  ctx.lineWidth=s*0.1;
-  ctx.beginPath(); ctx.moveTo(x-s*0.5,y+s*0.62); ctx.quadraticCurveTo(x-s*0.25,y+s*0.5,x,y+s*0.62);
-                   ctx.quadraticCurveTo(x+s*0.25,y+s*0.74,x+s*0.5,y+s*0.62); ctx.stroke();
-  ctx.restore();
-}
-// спидометр игры = дэш, обороты от реальной скорости (стоишь → 0)
+// спидометр: rp=rpm(газ), скорость км/ч, таймер обратный, одометр
 function drawSpeedo(){
-  const rev=Math.max(0, Math.min(1, Math.abs(speed)/SPD_MAX));
-  drawDash(W*0.5, H-92, 232, rev);
+  const kmh=Math.round(Math.max(0,Math.min(1,Math.abs(speed)/SPD_MAX))*118);
+  const tleft=Math.max(0, timeLimit-rideTime);
+  const kmStr=(scroll*0.02/1000).toFixed(1);
+  drawDash(W*0.5, H-100, 235, rpm, kmh, Math.ceil(tleft)+'s', kmStr);
 }
 function drawTimerClock(){
   const R=40, cx=W-56, cy=58;
