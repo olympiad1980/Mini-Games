@@ -479,7 +479,8 @@ function updatePhysics(dt){
   // ── продольная физика (только на земле) ──
   const eng = gasHeld && gameState==='RIDING' && !pitStall;   // газ работает только во время заезда И если не заглох в яме
   // ── ПЕРЕГРЕВ: газ копит нагрев, отпускание остужает ──
-  if(eng) engHeat += HEAT_UP*dt; else engHeat -= HEAT_DN*dt;
+  const up=Math.max(0,-Math.sin(groundAng)), down=Math.max(0,Math.sin(groundAng));
+  if(eng) engHeat += HEAT_UP*(1+0.6*up)*dt; else engHeat -= HEAT_DN*(1+1.5*down)*dt;
   engHeat = Math.max(0, Math.min(1, engHeat));
   if(engHeat>=1) engOverheat=true;
   if(engHeat<=HEAT_OK) engOverheat=false;                    // гистерезис
