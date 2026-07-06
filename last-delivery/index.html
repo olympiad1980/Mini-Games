@@ -297,14 +297,14 @@ function measureParTime(){
   nextRamp=0;startMoved=false;launchWheelie=0;pitEjected=false;floorScrape=false;pitStall=false;coyote=0;ejected=null;
   forkTravel=0;forkVel=0;flapAng=0;flapVel=0;bounce=0;bounceV=0;bar=0;barV=0;wheelie=0;slip=0;slopeShake=0;slopeAccum=0;prevGroundAng=0;prevAxleY=null;
   loadCargo();
-  const gs=gameState; gameState='RIDING'; const lj=learnedJump; const h0=engHeat, oh0=engOverheat;
+  const gs=gameState; gameState='RIDING'; const lj=learnedJump, hd=hintDone, ht=hintT; const h0=engHeat, oh0=engOverheat;
   let t=0, ok=false, ghostGas=true; const jumped=new Set();  // par: призрак сбрасывает газ по нагреву (как игрок по temp-бару), ямы перепрыгивает
   for(let i=0;i<20000;i++){ const wx=scroll+CX();
     if(engHeat>=0.82) ghostGas=false; else if(engHeat<=HEAT_OK) ghostGas=true;  // реактивно: отпускает до перегрева, снова газует остыв
     gasHeld=ghostGas;
     for(let pi=0;pi<pits.length;pi++){ if(!jumped.has(pi) && !bike.airborne && wx>=pits[pi].x0-12 && wx<pits[pi].x1){ jump(); jumped.add(pi); } }
     updatePhysics(1/60); t+=1/60; if(scroll+CX()>=GOAL){ ok=true; break; } }
-  gameState=gs; gasHeld=false; learnedJump=lj; engHeat=h0; engOverheat=oh0;
+  gameState=gs; gasHeld=false; learnedJump=lj; hintDone=hd; hintT=ht; engHeat=h0; engOverheat=oh0;
   return ok ? t : GOAL/PAR_K;                    // запасной вариант, если ghost не доехал
 }
 function rebuild(){
@@ -346,7 +346,7 @@ const TIGHT=1.20;      // таймер: лимит = эталон × TIGHT. 1.20
 const BONUS_K=0.5;    // бонус $ за каждую сэкономленную секунду (масштаб под base=10$)
 function setState(s){ gameState=s; }
 function startRide(){ if(gameState==='READY'){ gameState='RIDING'; rideTime=0; } }
-function resetRide(){ gameState='READY'; result=null; learnedJump=false; pitMissed=false; hintOut=1; hideResult(); rebuild(); }
+function resetRide(){ gameState='READY'; result=null; learnedJump=false; hintDone=false; hintT=-1; hideResult(); rebuild(); }
 // ── подсчёт итога уровня и показ экрана результата ──
 // ЗОННАЯ выплата за один довезённый баллон (base=10$): 🟢🟡 полная, 🟠 плавно до 40%, 🔴 ноль (сюда не заходит)
 function tankPayout(w){
@@ -406,7 +406,7 @@ function hideResult(){ const b=document.getElementById('result'); if(b)b.classLi
 // ════════ ФИЗИКА (жёсткая база) ════════
 let scroll=0,speed=0,gasHeld=false,wheelAngF=0,wheelAngR=0,slip=0,wheelie=0,spinF=0,spinR=0;
 let engHeat=0, engOverheat=false, rpm=0;   // rpm 0..1 = нагрев двигателя (engHeat); idle 0
-let learnedJump=false; let pitMissed=false; let hintOut=1;
+let learnedJump=false; let hintDone=false; let hintT=-1;
 let launchWheelie=0;             // импульс старт-вилли (1 в момент трогания, затухает)
 let startMoved=false;            // байк уже тронулся на этом уровне → старт-вилли больше не появляется
 let prevGroundAng=0;             // угол рельефа в прошлом кадре (для гашения при выполаживании)
@@ -694,25 +694,17 @@ function updatePhysics(dt){
 }
 // онбординг-хинт: пульсирующее "TAP TO JUMP" над байком при подъезде к первой яме (пока игрок ни разу не прыгал)
 function drawJumpHint(p){
-  if(gameState!=='RIDING' || !pits.length) return;
+  if(gameState!=='RIDING' || !pits.length || hintDone) return;
   const pit=pits[0], wx=scroll+CX();
-  if(learnedJump){ hintOut=Math.max(0,hintOut-0.024); if(hintOut<=0) return; }  // плавное затухание после тапа (~0.7с)
-  else {
-    if(wx > pit.x1) pitMissed=true;                 // проехал яму (в т.ч. по дну) без прыжка → хинт больше не всплывает
-    if(wx < pit.x0-W*2 || wx > pit.x1) return;
-    if(p.cy > terrY(pit.x0)+pit.depth*0.3){ pitMissed=true; }
-    if(pitMissed) return;
-  }
-  const fadeIn=Math.min(1,(wx-(pit.x0-W*2))/(W*0.5));         // плавный вход
-  const fadeOut=Math.min(1,(pit.x0-wx)/(W*2.5));              // плавный уход
-  const fade=learnedJump? hintOut : Math.min(fadeIn,fadeOut);
-  const pulse=0.55+0.45*Math.sin(performance.now()/180);
+  if(hintT<0){ if(wx < pit.x0-W*1) return; hintT=0; }       // вход в зону → запуск таймера
+  hintT+=1/60;
+  const IN=0.5, TOTAL=1.4;                                   // fade-in 0.5с, спад до 0, всего 1.4с
+  if(hintT>TOTAL){ hintDone=true; return; }
+  const fade = Math.max(0,Math.min(1, hintT<IN ? hintT/IN : 1-(hintT-IN)/(TOTAL-IN)));
   const sx=CX(), sy=H*0.25;
-  ctx.save(); ctx.globalAlpha=pulse*Math.max(0,fade); ctx.textAlign='center';
-  ctx.font='700 22px sans-serif'; ctx.fillStyle='#ffd166';
-  ctx.shadowColor='rgba(0,0,0,0.85)'; ctx.shadowBlur=6;
+  ctx.save(); ctx.textAlign='center';
+  ctx.font='700 22px sans-serif'; ctx.fillStyle='rgba(255,209,102,'+fade.toFixed(3)+')';
   ctx.fillText('TAP  TO  JUMP', sx, sy);
-  ctx.font='28px sans-serif'; ctx.fillText('☝', sx, sy+28);
   ctx.restore(); ctx.textAlign='left';
 }
 function jump(){ if(bike.init && (!bike.airborne || coyote>0) && bike.vy>-50){ bike.airborne=true; bike.vy=-JUMP_V; coyote=0; learnedJump=true; } }  // прыжок: с земли ИЛИ в coyote-окне; без двойного
@@ -1684,7 +1676,7 @@ function drawDash(cx,cy,dw,rp,kmh,timeStr,kmVal){
   const N=(fx,fy)=>[ox+fx*dw, oy+fy*dh];
   // уши сквозные
   const ear=(exf)=>{ const [ex,ey]=N(exf,1.0); const ew=dw*0.115, eh=dh*0.17, r=eh*0.5;
-    ctx.fillStyle='#6b5d4a'; ctx.beginPath(); ctx.roundRect(ex-ew/2,ey-eh*0.1,ew,eh,r); ctx.fill();
+    ctx.fillStyle='#4f4636'; ctx.beginPath(); ctx.roundRect(ex-ew/2,ey-eh*0.1,ew,eh,r); ctx.fill();
     ctx.save(); ctx.globalCompositeOperation='destination-out'; ctx.beginPath(); ctx.arc(ex,ey+eh*0.45,eh*0.19,0,7); ctx.fill(); ctx.restore(); };
   ear(0.36); ear(0.64);
   // корпус
